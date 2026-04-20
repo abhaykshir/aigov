@@ -1,0 +1,18 @@
+[project]
+name = "aigov"
+version = "0.1.0"
+description = "AI Governance-as-Code CLI — discover, classify, and govern AI systems"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer",
+    "rich",
+    "pyyaml",
+    "gitpython",
+]
+
+[project.scripts]
+aigov = "aigov.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

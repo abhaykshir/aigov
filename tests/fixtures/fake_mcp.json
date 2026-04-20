@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "brave-search": {
+      "url": "https://mcp.brave.com/sse",
+      "env": {
+        "BRAVE_API_KEY": "FAKE_BRAVE_KEY_NEVER_REAL"
+      }
+    }
+  }
+}
