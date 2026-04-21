@@ -54,6 +54,28 @@ class AISystemRecord:
     classification_rationale: Optional[str] = None
     tags: dict[str, str] = field(default_factory=dict)
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "AISystemRecord":
+        from datetime import datetime
+        rl_raw = data.get("risk_classification")
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description", ""),
+            source_scanner=data["source_scanner"],
+            source_location=data["source_location"],
+            discovery_timestamp=datetime.fromisoformat(data["discovery_timestamp"]),
+            confidence=float(data["confidence"]),
+            system_type=AISystemType(data["system_type"]),
+            provider=data["provider"],
+            deployment_type=DeploymentType(data["deployment_type"]),
+            data_categories=list(data.get("data_categories") or []),
+            model_identifier=data.get("model_identifier"),
+            risk_classification=RiskLevel(rl_raw) if rl_raw else RiskLevel.UNKNOWN,
+            classification_rationale=data.get("classification_rationale"),
+            tags=dict(data.get("tags") or {}),
+        )
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,

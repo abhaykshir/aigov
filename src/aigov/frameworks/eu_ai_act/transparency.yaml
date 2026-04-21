@@ -1,0 +1,218 @@
+# EU AI Act Article 50 — Transparency Obligations for Limited-Risk AI Systems
+# Regulation (EU) 2024/1689
+# These obligations apply to specific AI systems regardless of risk classification.
+# Providers and deployers must ensure affected persons are informed as specified.
+
+obligations:
+
+  - id: transparency_1
+    name: Disclosure of AI Interaction — Conversational and Chatbot Systems
+    description: >
+      Providers of AI systems intended to interact directly with natural persons must
+      ensure that those persons are informed they are interacting with an AI system,
+      unless this is obvious from the context. Deployers of emotion recognition systems
+      and biometric categorisation systems must also inform natural persons exposed to them.
+    risk_level: limited
+    article_reference: "Article 50(1)"
+    signals:
+      keywords:
+        - chatbot
+        - conversational ai
+        - virtual assistant
+        - ai assistant
+        - chat assistant
+        - dialogue system
+        - nlp chatbot
+        - ai chat
+        - automated conversation
+        - customer service bot
+        - support bot
+        - ai agent
+        - voice assistant
+        - interactive ai
+        - question answering system
+        - llm application
+        - generative chat
+      library_patterns:
+        - openai
+        - anthropic
+        - langchain
+        - llama_index
+        - llama-index
+        - haystack
+        - rasa
+        - botpress
+        - dialogflow
+        - transformers.*pipeline.*text-generation
+        - cohere
+        - mistralai
+        - groq
+        - together
+        - huggingface_hub
+      cloud_services:
+        - openai api
+        - azure openai
+        - amazon bedrock
+        - google vertex ai
+        - anthropic api
+        - cohere api
+        - mistral api
+        - ibm watsonx
+        - aws lex
+        - google dialogflow
+        - nuance
+        - salesforce einstein bots
+        - zendesk ai
+        - intercom ai
+    required_actions:
+      - Display a clear, prominent notice at the start of any interaction that the user is communicating with an AI system.
+      - Ensure the AI disclosure is not buried in terms of service or privacy policies; it must be at point of interaction.
+      - Document the disclosure mechanism in technical documentation and deployer instructions.
+      - Allow users to opt for human assistance where technically feasible.
+      - Retain disclosure logs where required by applicable sector regulation.
+      - Review the disclosure exemption: if AI nature is obvious from context, document this assessment.
+
+  - id: transparency_2
+    name: Labelling of AI-Generated Synthetic Content
+    description: >
+      Providers of AI systems that generate synthetic audio, image, video, or text content
+      (deepfakes, AI-generated media, synthetic text) must ensure the outputs are marked in
+      a machine-readable format and detectable as artificially generated or manipulated.
+      Deployers must disclose that content is AI-generated where it is not obvious. Exceptions
+      apply for authorised law enforcement, national security, and creative/artistic work with
+      appropriate disclosure.
+    risk_level: limited
+    article_reference: "Article 50(2)–(4)"
+    signals:
+      keywords:
+        - deepfake
+        - synthetic media
+        - ai generated image
+        - ai generated video
+        - ai generated audio
+        - ai generated text
+        - generated content
+        - synthetic voice
+        - voice cloning
+        - voice synthesis
+        - text to speech
+        - tts
+        - image generation
+        - video generation
+        - text generation
+        - synthetic data generation
+        - ai art
+        - stable diffusion
+        - generative adversarial
+        - gan
+        - diffusion model
+        - neural voice
+        - ai narration
+        - synthetic face
+        - face swap
+        - lip sync
+        - avatar generation
+      library_patterns:
+        - diffusers
+        - stable-diffusion
+        - openai.*dall-e
+        - openai.*image
+        - replicate
+        - elevenlabs
+        - bark
+        - tortoisetts
+        - coqui
+        - suno
+        - udio
+        - runway
+        - pika
+        - midjourney
+        - dalle
+        - imagen
+        - firefly
+        - leonardo
+        - whisper.*generate
+        - transformers.*text-generation
+        - transformers.*image-generation
+        - gpt.*generate
+        - claude.*generate
+      cloud_services:
+        - openai dall-e
+        - openai sora
+        - google imagen
+        - google veo
+        - azure openai gpt
+        - anthropic claude
+        - stability ai
+        - midjourney api
+        - runway ml
+        - elevenlabs
+        - murf.ai
+        - synthesia
+        - heygen
+        - d-id
+        - pika labs
+        - amazon polly
+        - google text-to-speech
+        - microsoft azure text-to-speech
+    required_actions:
+      - Embed machine-readable watermarks or metadata in all AI-generated content outputs per C2PA or equivalent standard.
+      - Display a human-readable disclosure label to end users at point of content delivery.
+      - Implement provenance metadata (e.g., Content Credentials / C2PA manifest) in image, audio, and video outputs.
+      - Document the disclosure and watermarking mechanism in technical and user-facing documentation.
+      - For text generation used in news, political communication, or public interest contexts, apply explicit labelling.
+      - Assess whether the creative/artistic exception applies; if so, document the assessment and ensure appropriate disclosure is still provided.
+      - Do not apply labels in ways that could be trivially stripped; prefer in-content watermarking over metadata-only approaches.
+
+  - id: transparency_3
+    name: Emotion Recognition — Subject Notification
+    description: >
+      Deployers of emotion recognition systems must inform natural persons exposed to
+      such systems of the operation of the system. This obligation applies in all contexts
+      except where use is for medical reasons or safety of persons, where other applicable
+      law governs the information requirement.
+    risk_level: limited
+    article_reference: "Article 50(5)"
+    signals:
+      keywords:
+        - emotion recognition
+        - emotion detection
+        - sentiment detection from face
+        - affect recognition
+        - facial expression analysis
+        - mood detection
+        - emotional state inference
+        - valence detection
+        - arousal detection
+        - engagement detection face
+        - attention detection
+        - micro-expression analysis
+        - pain detection
+        - stress detection face
+      library_patterns:
+        - deepface.*emotion
+        - fer
+        - fer2013
+        - affectnet
+        - emopy
+        - facenet.*emotion
+        - imotion
+        - affectiva
+        - noldus
+      cloud_services:
+        - aws rekognition emotions
+        - azure face emotion
+        - google vision face emotions
+        - kairos emotions
+        - affectiva affdex
+        - noldus facereader
+        - imotions platform
+        - cloud vision api emotions
+        - microsoft cognitive face emotions
+    required_actions:
+      - Provide a clear, prior notice to all persons subject to emotion recognition before the system is activated.
+      - Display ongoing notification (e.g., visual indicator) while emotion recognition is operating.
+      - Document the notification mechanism and retain evidence of its implementation.
+      - Assess whether a medical or safety exception applies; if so, document the legal basis and consult applicable sector law.
+      - Ensure notification is accessible to persons with disabilities (e.g., audio and visual formats).
+      - Where the system is operated in a public space, use clearly visible signage at all entry points.

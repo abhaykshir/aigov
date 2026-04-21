@@ -177,6 +177,112 @@ def test_skips_venv_directory(tmp_path):
     assert not any(r.provider == "OpenAI" for r in result)
 
 
+# --- Description format ---
+
+def test_description_starts_with_imports(records):
+    for rec in records:
+        assert rec.description.startswith("imports: "), (
+            f"Expected description to start with 'imports: ', got: {rec.description!r}"
+        )
+
+
+def test_description_no_function_section_for_fixture_without_defs(records):
+    # sample_ai_app.py has no function or class definitions, only module-level statements.
+    for rec in records:
+        assert "functions:" not in rec.description
+        assert "classes:" not in rec.description
+
+
+def test_description_includes_functions_when_file_has_defs(tmp_path):
+    src = (
+        "import openai\n"
+        "\n"
+        "def score_candidate(text): pass\n"
+        "def shortlist(score): pass\n"
+    )
+    f = tmp_path / "screener.py"
+    f.write_text(src, encoding="utf-8")
+    recs = PythonImportsScanner().scan([str(f)])
+    assert recs
+    desc = recs[0].description
+    assert "imports: openai" in desc
+    assert "functions:" in desc
+    assert "score_candidate" in desc
+    assert "shortlist" in desc
+
+
+def test_description_includes_class_names(tmp_path):
+    src = (
+        "import anthropic\n"
+        "\n"
+        "class CustomerBot:\n"
+        "    def handle(self, q): pass\n"
+    )
+    f = tmp_path / "bot.py"
+    f.write_text(src, encoding="utf-8")
+    recs = PythonImportsScanner().scan([str(f)])
+    assert recs
+    desc = recs[0].description
+    assert "classes: CustomerBot" in desc
+    assert "handle" in desc
+
+
+def test_description_excludes_dunder_methods(tmp_path):
+    src = (
+        "import openai\n"
+        "\n"
+        "class Model:\n"
+        "    def __init__(self): pass\n"
+        "    def predict(self, x): pass\n"
+    )
+    f = tmp_path / "model.py"
+    f.write_text(src, encoding="utf-8")
+    recs = PythonImportsScanner().scan([str(f)])
+    assert recs
+    desc = recs[0].description
+    assert "__init__" not in desc
+    assert "predict" in desc
+
+
+def test_description_never_contains_function_body(tmp_path):
+    """Ensure the scanner extracts names only — never bodies or argument defaults."""
+    src = (
+        "import openai\n"
+        "\n"
+        "SECRET = 'do_not_expose'\n"
+        "\n"
+        "def process(data, key=SECRET):\n"
+        "    internal_var = 'sensitive'\n"
+        "    return internal_var\n"
+    )
+    f = tmp_path / "secure.py"
+    f.write_text(src, encoding="utf-8")
+    recs = PythonImportsScanner().scan([str(f)])
+    assert recs
+    desc = recs[0].description
+    assert "do_not_expose" not in desc
+    assert "sensitive" not in desc
+    assert "internal_var" not in desc
+    assert "process" in desc  # name is present; body is not
+
+
+def test_description_functions_deduped_and_ordered(tmp_path):
+    src = (
+        "import openai\n"
+        "def alpha(): pass\n"
+        "def beta(): pass\n"
+        "def alpha(): pass\n"  # duplicate name — should appear once
+    )
+    f = tmp_path / "app.py"
+    f.write_text(src, encoding="utf-8")
+    recs = PythonImportsScanner().scan([str(f)])
+    assert recs
+    desc = recs[0].description
+    func_section = desc.split("functions: ", 1)[1] if "functions: " in desc else ""
+    names = [n.strip() for n in func_section.split(",")]
+    assert names.count("alpha") == 1, "Duplicate function name should appear only once"
+
+
 # --- to_dict serialisation ---
 
 def test_to_dict_is_json_safe(records):

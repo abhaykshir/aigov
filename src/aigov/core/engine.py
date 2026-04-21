@@ -159,3 +159,38 @@ class ScanEngine:
 
 from typing import Callable
 ProgressCallback = Callable[[str, str], None]
+
+
+# ---------------------------------------------------------------------------
+# Framework classification
+# ---------------------------------------------------------------------------
+
+SUPPORTED_FRAMEWORKS: frozenset[str] = frozenset({"eu_ai_act"})
+
+
+def classify_results(scan_result: ScanResult, frameworks: list[str]) -> ScanResult:
+    """Return a new ScanResult with risk_classification populated on every record.
+
+    Only read-only metadata from each record is inspected — no file I/O or
+    network calls are made during classification.
+    """
+    import dataclasses
+
+    unknown = [f for f in frameworks if f not in SUPPORTED_FRAMEWORKS]
+    if unknown:
+        raise ValueError(
+            f"Unknown framework(s): {', '.join(unknown)}. "
+            f"Supported: {', '.join(sorted(SUPPORTED_FRAMEWORKS))}"
+        )
+
+    # Shallow-copy each record (with its own tags dict) so the originals stay immutable.
+    records = [dataclasses.replace(r, tags=dict(r.tags)) for r in scan_result.records]
+
+    if "eu_ai_act" in frameworks:
+        from aigov.frameworks.eu_ai_act import EUAIActClassifier
+        classifier = EUAIActClassifier()
+        records = [classifier.classify(r) for r in records]
+
+    new_result = dataclasses.replace(scan_result, records=records)
+    new_result._compute_summaries()
+    return new_result

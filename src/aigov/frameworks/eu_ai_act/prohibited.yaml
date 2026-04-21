@@ -1,0 +1,269 @@
+# EU AI Act Article 5 — Prohibited AI Practices
+# Regulation (EU) 2024/1689
+# These practices are absolutely prohibited. Detection of signals matching these
+# categories should trigger a PROHIBITED finding, not merely a high-risk flag.
+
+practices:
+
+  - id: prohibited_1
+    name: Social Scoring by Public Authorities
+    description: >
+      AI systems that evaluate or classify natural persons or groups over a certain period
+      of time based on their social behaviour or known, inferred or predicted personal or
+      personality characteristics, causing social scores leading to detrimental or unfavourable
+      treatment in unrelated social contexts or treatment that is disproportionate or unjustified.
+    risk_level: prohibited
+    article_reference: "Article 5(1)(c)"
+    signals:
+      keywords:
+        - social credit score
+        - citizen score
+        - social scoring
+        - trustworthiness score
+        - social behaviour scoring
+        - civic compliance score
+        - social ranking
+        - loyalty score
+        - citizen ranking
+        - behavioural scoring
+        - social compliance monitoring
+        - population scoring
+      library_patterns: []
+      cloud_services: []
+    required_actions:
+      - Immediately halt development and deployment; this practice is prohibited without exception.
+      - Review whether the system can be repurposed to remove the scoring-for-social-control element.
+      - Consult legal counsel to assess liability under Article 99 (penalties up to €35 million or 7% of global turnover).
+      - If deployed by a public authority, notify the national market surveillance authority.
+
+  - id: prohibited_2
+    name: Real-Time Remote Biometric Identification in Public Spaces (Law Enforcement)
+    description: >
+      AI systems used for real-time remote biometric identification of natural persons in
+      publicly accessible spaces for the purpose of law enforcement, except in narrowly
+      defined circumstances (searching for missing persons, preventing specific terrorist
+      threats, identifying suspects of serious crimes) subject to judicial or administrative
+      authorisation.
+    risk_level: prohibited
+    article_reference: "Article 5(1)(h); Article 5(2)–(6) for exceptions"
+    signals:
+      keywords:
+        - real-time facial recognition
+        - live facial recognition
+        - real-time biometric identification
+        - live biometric surveillance
+        - public space face recognition
+        - ccctv face recognition
+        - crowd surveillance biometrics
+        - mass biometric surveillance
+        - pedestrian identification
+        - public facial matching
+        - live identity recognition
+      library_patterns:
+        - deepface
+        - face_recognition
+        - insightface
+        - retinaface
+        - facenet
+      cloud_services:
+        - aws rekognition
+        - azure face api
+        - google cloud vision face detection
+        - clearview ai
+        - nec neoface
+        - idemia
+    required_actions:
+      - Confirm the system is not deployed by or on behalf of a law enforcement authority in public spaces.
+      - If law enforcement use is intended, verify one of the Article 5(2) exceptions applies.
+      - Obtain prior judicial authorisation or, in urgent cases, ex-post authorisation per Article 5(4).
+      - Log all deployments and report to the national supervisory authority per Article 5(5).
+      - Assess whether post-market deployment by a third party could result in law enforcement use.
+      - Document the scope, geographic area, and duration of any authorised deployment.
+
+  - id: prohibited_3
+    name: Subliminal Manipulation
+    description: >
+      AI systems that deploy subliminal techniques beyond a person's consciousness or
+      purposefully manipulative or deceptive techniques with the objective or effect of
+      materially distorting the behaviour of a person or group in a manner that causes or
+      is likely to cause significant harm.
+    risk_level: prohibited
+    article_reference: "Article 5(1)(a)"
+    signals:
+      keywords:
+        - subliminal message
+        - subliminal advertising
+        - subconscious nudge
+        - dark pattern
+        - psychological manipulation
+        - covert persuasion
+        - hidden persuasion technique
+        - neuromarketing manipulation
+        - behavioral manipulation
+        - imperceptible influence
+        - below threshold stimulus
+        - unconscious priming
+        - deceptive user interface
+        - manufactured urgency
+        - false social proof
+      library_patterns: []
+      cloud_services: []
+    required_actions:
+      - Immediately halt development and deployment; this practice is prohibited without exception.
+      - Audit existing product UX and recommendation logic for dark patterns constituting subliminal manipulation.
+      - Consult legal counsel regarding Article 99 penalties.
+      - Remove or redesign any feature identified as operating below the threshold of conscious perception to alter behaviour harmfully.
+
+  - id: prohibited_4
+    name: Exploitation of Vulnerabilities of Specific Groups
+    description: >
+      AI systems that exploit any of the vulnerabilities of a natural person or a specific
+      group of persons due to their age, disability, or a specific social or economic situation,
+      with the objective or effect of materially distorting the behaviour of that person or
+      a person belonging to that group in a manner that causes or is likely to cause significant harm.
+    risk_level: prohibited
+    article_reference: "Article 5(1)(b)"
+    signals:
+      keywords:
+        - vulnerability exploitation
+        - predatory targeting
+        - elder targeting
+        - targeting minors
+        - child exploitation
+        - disability exploitation
+        - addiction exploitation
+        - gambling targeting vulnerable
+        - financial exploitation
+        - debt trap targeting
+        - mental health exploitation
+        - loneliness exploitation
+        - grief targeting
+        - fear exploitation
+        - cognitive bias exploitation
+      library_patterns: []
+      cloud_services: []
+    required_actions:
+      - Immediately halt deployment targeting identified vulnerable groups for exploitative purposes.
+      - Conduct a fundamental rights impact assessment to identify vulnerable user segments.
+      - Redesign targeting and personalisation logic to exclude exploitation of identified vulnerabilities.
+      - Implement safeguards preventing deployment toward children, persons with cognitive disabilities, or persons in acute financial distress where the purpose is distortion of behaviour.
+
+  - id: prohibited_5
+    name: Untargeted Scraping of Facial Images for Biometric Databases
+    description: >
+      AI systems that create or expand facial recognition databases through the untargeted
+      scraping of facial images from the internet or CCTV footage.
+    risk_level: prohibited
+    article_reference: "Article 5(1)(e)"
+    signals:
+      keywords:
+        - facial image scraping
+        - face database collection
+        - bulk face collection
+        - mass face harvesting
+        - internet face scraping
+        - cctv face collection
+        - facial image crawling
+        - biometric database building
+        - face dataset collection
+        - mass biometric enrollment
+      library_patterns:
+        - scrapy
+        - beautifulsoup
+        - selenium
+        - playwright
+        - requests.*scrape
+      cloud_services:
+        - clearview ai
+        - facepp
+        - kairos
+    required_actions:
+      - Immediately cease any scraping activity targeting facial images for biometric identification purposes.
+      - Delete any biometric database built through untargeted scraping.
+      - Ensure all biometric training data has explicit, informed consent from data subjects.
+      - Consult legal counsel regarding GDPR Article 9 violations in addition to EU AI Act Article 5.
+
+  - id: prohibited_6
+    name: Emotion Recognition in Workplace or Educational Settings
+    description: >
+      AI systems that infer emotions of natural persons in the areas of workplace and
+      educational institutions, except where the use is for medical or safety reasons
+      (e.g., drowsiness detection for drivers or operators of heavy machinery).
+    risk_level: prohibited
+    article_reference: "Article 5(1)(f); medical/safety exception in Article 5(1)(f)"
+    signals:
+      keywords:
+        - employee emotion recognition
+        - worker emotion detection
+        - staff mood monitoring
+        - sentiment analysis employees
+        - workplace emotion ai
+        - student emotion detection
+        - classroom emotion recognition
+        - learner mood tracking
+        - attention detection students
+        - engagement detection classroom
+        - employee wellbeing monitoring ai
+        - workforce mood analytics
+        - student engagement ai
+        - facial expression analysis employees
+      library_patterns:
+        - deepface
+        - fer
+        - affectnet
+        - emopy
+        - imotion
+      cloud_services:
+        - aws rekognition emotions
+        - azure face emotion
+        - google vision emotions
+        - kairos emotions
+        - affectiva
+        - noldus facereader
+        - imotions
+    required_actions:
+      - Immediately halt deployment for emotion recognition targeting employees or students.
+      - Assess whether a medical or safety exception applies (e.g., drowsiness detection); document the legal basis.
+      - Remove emotion inference features from HR, productivity, and educational monitoring tools.
+      - Consult legal counsel regarding Article 99 penalties and applicable GDPR obligations.
+
+  - id: prohibited_7
+    name: Biometric Categorisation Inferring Sensitive Attributes
+    description: >
+      AI systems that categorise natural persons individually based on their biometric data
+      to deduce or infer their race, political opinions, trade union membership, religious
+      or philosophical beliefs, sex life or sexual orientation. (Note: labelling or filtering
+      of lawfully acquired biometric datasets in AI research is not covered by this prohibition.)
+    risk_level: prohibited
+    article_reference: "Article 5(1)(g)"
+    signals:
+      keywords:
+        - race detection from face
+        - ethnicity prediction
+        - political affiliation from face
+        - sexual orientation detection
+        - gender identity inference
+        - religion inference from face
+        - biometric political profiling
+        - biometric race classification
+        - phenotype classification
+        - biometric sexual orientation
+        - appearance-based political scoring
+        - ethnicity classification biometric
+        - skin tone classification
+      library_patterns:
+        - deepface.*race
+        - deepface.*ethnicity
+        - fairface
+        - face_attribute
+        - insightface.*attribute
+      cloud_services:
+        - aws rekognition demographics
+        - azure face attributes
+        - google vision demographics
+        - face++.*attribute
+    required_actions:
+      - Immediately halt any inference of race, ethnicity, political opinions, religious beliefs, sexual orientation, or trade union membership from biometric data.
+      - Audit existing model outputs to identify whether sensitive attribute inference is occurring as a side effect.
+      - Delete model weights and outputs derived from prohibited categorisation.
+      - Consult legal counsel for Article 99 penalties and GDPR Article 9 violations.

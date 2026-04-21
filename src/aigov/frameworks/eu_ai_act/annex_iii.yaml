@@ -1,0 +1,446 @@
+# EU AI Act Annex III — High-Risk AI System Classifications
+# Regulation (EU) 2024/1689, Article 6(2) and Annex III
+# Systems listed here are classified as high-risk and subject to Chapter III obligations.
+
+categories:
+
+  - id: annex_iii_1
+    name: Biometrics
+    description: >
+      AI systems intended to be used for remote biometric identification of natural persons,
+      biometric categorisation of natural persons according to sensitive or protected attributes,
+      and emotion recognition systems.
+    risk_level: high
+    article_reference: "Annex III, Point 1; Recitals 40–44"
+    signals:
+      keywords:
+        - facial recognition
+        - biometric identification
+        - biometric categorization
+        - face detection
+        - face matching
+        - face verification
+        - identity verification
+        - emotion recognition
+        - emotion detection
+        - affect recognition
+        - gait recognition
+        - iris recognition
+        - fingerprint recognition
+        - voice biometrics
+        - liveness detection
+        - deepface
+        - face_recognition
+      library_patterns:
+        - deepface
+        - face_recognition
+        - insightface
+        - facenet
+        - dlib
+        - openface
+        - mediapipe.*face
+        - ageitgey
+        - facenet-pytorch
+        - retinaface
+        - arcface
+        - paddlepaddle.*face
+      cloud_services:
+        - aws rekognition
+        - amazon rekognition
+        - azure face api
+        - azure cognitive services face
+        - google cloud vision face detection
+        - google vision api face
+        - microsoft face
+        - kairos face recognition
+        - clarifai face recognition
+        - face++
+        - megvii
+        - sensetime
+    required_actions:
+      - Register the system in the EU AI Act database before deployment (Article 49).
+      - Conduct a conformity assessment (Article 43) prior to placing on market.
+      - Implement a quality management system (Article 17).
+      - Prepare and maintain technical documentation as specified in Annex IV.
+      - Implement human oversight measures (Article 14).
+      - Perform fundamental rights impact assessment where required (Article 27).
+      - Ensure data governance and training data requirements are met (Article 10).
+      - Affix CE marking and issue EU declaration of conformity (Articles 47–48).
+
+  - id: annex_iii_2
+    name: Critical Infrastructure
+    description: >
+      AI systems intended to be used as safety components in the management and operation
+      of critical digital infrastructure, road traffic, or supply of water, gas, heating,
+      or electricity.
+    risk_level: high
+    article_reference: "Annex III, Point 2; Recital 51"
+    signals:
+      keywords:
+        - power grid
+        - smart grid
+        - electricity distribution
+        - traffic management
+        - traffic control
+        - water treatment
+        - water supply management
+        - scada
+        - industrial control system
+        - ics
+        - energy management system
+        - ems
+        - building management system
+        - bms
+        - gas pipeline
+        - heating network
+        - district heating
+        - critical infrastructure
+        - operational technology
+        - safety instrumented system
+        - sis
+        - distributed control system
+        - dcs
+        - supervisory control
+      library_patterns:
+        - pymodbus
+        - opcua
+        - snap7
+        - pycomm3
+        - cpppo
+        - dnp3
+        - iec104
+      cloud_services:
+        - aws iot greengrass
+        - azure iot hub
+        - google cloud iot
+        - siemens mindsphere
+        - ge predix
+        - honeywell connected plant
+    required_actions:
+      - Conduct conformity assessment with particular focus on safety risk management (Article 9).
+      - Prepare technical documentation (Annex IV) and maintain it throughout lifecycle.
+      - Implement logging and traceability for safety-related decisions (Article 12).
+      - Notify relevant national competent authority if system is used in critical infrastructure.
+      - Conduct post-market monitoring per Article 72 and report serious incidents.
+      - Ensure human oversight mechanisms allow intervention in safety-critical scenarios (Article 14).
+      - Validate system under adversarial and edge-case conditions relevant to the infrastructure type.
+
+  - id: annex_iii_3
+    name: Education and Vocational Training
+    description: >
+      AI systems intended to be used to determine access to or admission to educational
+      and vocational training institutions, to evaluate learning outcomes, to assess
+      the appropriate level of education, or to monitor and detect prohibited behaviour
+      during tests.
+    risk_level: high
+    article_reference: "Annex III, Point 3; Recital 53"
+    signals:
+      keywords:
+        - student assessment
+        - learning assessment
+        - grading system
+        - automated grading
+        - admissions scoring
+        - admissions screening
+        - exam proctoring
+        - online proctoring
+        - learning evaluation
+        - student performance prediction
+        - education outcome
+        - academic performance
+        - plagiarism detection
+        - cheating detection
+        - student ranking
+        - course recommendation
+        - adaptive learning path
+        - learning analytics
+        - student risk prediction
+        - dropout prediction
+      library_patterns:
+        - sklearn.*classifier
+        - xgboost
+        - lightgbm
+      cloud_services:
+        - turnitin
+        - proctorio
+        - respondus
+        - examity
+        - honorlock
+        - canvas analytics
+        - blackboard analytics
+    required_actions:
+      - Conduct conformity assessment and prepare Annex IV technical documentation.
+      - Implement human review mechanisms for all consequential decisions affecting students.
+      - Ensure affected individuals can request human review of AI-assisted decisions (Article 86).
+      - Assess and mitigate bias across protected characteristics (age, gender, disability, race).
+      - Maintain audit logs of decisions for the duration specified in Article 12.
+      - Inform affected students or trainees of the use of AI systems in assessments.
+      - Register the system in the EU AI Act database (Article 49).
+
+  - id: annex_iii_4
+    name: Employment and Worker Management
+    description: >
+      AI systems intended to be used for recruitment or selection of natural persons,
+      for making decisions on promotion and termination of work-related contractual
+      relationships, for task allocation, and for monitoring and evaluating performance
+      and behaviour of persons in such relationships.
+    risk_level: high
+    article_reference: "Annex III, Point 4; Recitals 55–57"
+    signals:
+      keywords:
+        - resume screening
+        - resume screener
+        - cv screening
+        - candidate scoring
+        - applicant tracking
+        - hiring decision
+        - recruitment algorithm
+        - talent acquisition
+        - interview scoring
+        - video interview analysis
+        - personality assessment
+        - job fit score
+        - performance review
+        - employee evaluation
+        - workforce analytics
+        - employee monitoring
+        - productivity monitoring
+        - performance prediction
+        - termination risk
+        - attrition prediction
+        - promotion decision
+        - task allocation
+        - workload distribution
+      library_patterns:
+        - pyats
+        - textkernel
+        - sovren
+        - resumeparser
+      cloud_services:
+        - openai
+        - hirevue
+        - pymetrics
+        - eightfold.ai
+        - greenhouse
+        - lever
+        - workday recruiting
+        - sap successfactors
+        - oracle hcm
+        - ibm watson talent
+        - linkedin talent hub
+    required_actions:
+      - Conduct conformity assessment; prepare and maintain technical documentation (Annex IV).
+      - Assess and document bias mitigation measures across protected characteristics.
+      - Register the system in the EU AI Act database before deployment (Article 49).
+      - Provide candidates and employees with the right to seek human review (Article 86).
+      - Ensure decision outputs are explainable and auditable by HR personnel.
+      - Implement logging sufficient to reconstruct decisions for at least the period defined in Article 12.
+      - Inform workers subject to monitoring systems of the AI system's use and logic.
+
+  - id: annex_iii_5
+    name: Access to Essential Private and Public Services
+    description: >
+      AI systems intended to be used to evaluate the creditworthiness of natural persons
+      or establish their credit score, used in life and health insurance risk assessment
+      and pricing, for evaluation of eligibility for public assistance benefits and services,
+      for risk assessment and profiling in emergency response, and for triage of patients
+      in healthcare.
+    risk_level: high
+    article_reference: "Annex III, Point 5; Recitals 58–61"
+    signals:
+      keywords:
+        - credit score
+        - credit scoring
+        - creditworthiness assessment
+        - credit
+        - loan approval
+        - loan decisioning
+        - mortgage risk
+        - loan
+        - insurance pricing
+        - insurance risk assessment
+        - insurance
+        - underwriting model
+        - underwriting
+        - benefits eligibility
+        - social benefits assessment
+        - welfare eligibility
+        - public assistance eligibility
+        - healthcare triage
+        - patient triage
+        - emergency prioritization
+        - emergency dispatch
+        - clinical risk score
+        - risk stratification
+        - fraud scoring
+        - fraud detection
+        - fraud
+        - risk assessment
+        - claims
+      library_patterns:
+        - scorecardpy
+        - optbinning
+        - xgboost
+        - lightgbm
+        - shap
+      cloud_services:
+        - experian connect
+        - equifax dataiq
+        - transunion truevalidate
+        - aws fraud detector
+        - azure anomaly detector
+        - google cloud healthcare api
+        - epic systems
+        - meditech
+    required_actions:
+      - Conduct conformity assessment and register in the EU AI Act database (Article 49).
+      - Prepare technical documentation covering model design, training data, and validation (Annex IV).
+      - Implement human oversight allowing override of automated decisions (Article 14).
+      - Ensure individuals have the right to request explanation and human review (Article 86).
+      - Assess discriminatory impact across protected groups before and during deployment.
+      - Maintain decision logs for the retention period required by Article 12.
+      - Where decisions affect public benefits, ensure proportionality and alignment with national law.
+
+  - id: annex_iii_6
+    name: Law Enforcement
+    description: >
+      AI systems intended to be used by competent authorities for individual risk assessment
+      for crime or reoffending, use as polygraphs or similar tools, evaluation of reliability
+      of evidence, profiling of natural persons to predict criminal offences, and crime analytics
+      identifying unrecognised patterns.
+    risk_level: high
+    article_reference: "Annex III, Point 6; Recitals 62–66"
+    signals:
+      keywords:
+        - crime prediction
+        - predictive policing
+        - criminal risk assessment
+        - recidivism prediction
+        - recidivism risk
+        - reoffending risk
+        - evidence analysis
+        - evidence evaluation
+        - suspect profiling
+        - criminal profiling
+        - crime analytics
+        - pattern-of-life analysis
+        - deception detection
+        - polygraph
+        - lie detection
+        - voice stress analysis
+        - threat assessment
+        - gang affiliation detection
+        - person of interest scoring
+      library_patterns:
+        - compas
+        - northpointe
+      cloud_services:
+        - palantir gotham
+        - palantir foundry
+        - ibm i2
+        - iceye analytics
+        - cellebrite
+    required_actions:
+      - Verify whether use case falls within Article 5 prohibited practices before proceeding.
+      - Obtain authorisation from competent supervisory authority where required by national law.
+      - Conduct conformity assessment with fundamental rights impact analysis (Article 27).
+      - Implement strict human oversight; prohibit fully automated decisions without human review.
+      - Ensure data used for training is not derived from unlawful collection or processing.
+      - Maintain detailed audit logs accessible to data protection and judicial oversight bodies.
+      - Conduct regular accuracy and bias audits disaggregated by demographic group.
+      - Register system in the EU AI Act database (Article 49).
+
+  - id: annex_iii_7
+    name: Migration, Asylum, and Border Control Management
+    description: >
+      AI systems intended to be used as polygraphs in migration contexts, to assess
+      the risk or security threats posed by persons entering the EU, for examination
+      of applications for asylum or visa and related complaints, and for detection,
+      recognition or identification of natural persons in the context of border control.
+    risk_level: high
+    article_reference: "Annex III, Point 7; Recitals 67–70"
+    signals:
+      keywords:
+        - visa processing
+        - visa risk assessment
+        - asylum assessment
+        - asylum decision
+        - border control
+        - border surveillance
+        - immigration screening
+        - travel document verification
+        - document authenticity
+        - entry risk scoring
+        - passenger risk profiling
+        - immigration compliance
+        - traveler screening
+        - refugee assessment
+        - biometric border check
+      library_patterns:
+        - passporteye
+        - mrz
+        - pypassport
+      cloud_services:
+        - idemia
+        - thales dis
+        - nec neoface
+        - aws rekognition
+        - azure face api
+        - interpol databases
+    required_actions:
+      - Conduct conformity assessment and fundamental rights impact assessment (Articles 27, 43).
+      - Register the system in the EU AI Act database (Article 49).
+      - Ensure all decisions have mandatory human review; prohibit fully automated adverse decisions.
+      - Consult with relevant national asylum and migration authorities before deployment.
+      - Ensure affected persons have access to the right to seek human review (Article 86).
+      - Implement logging and audit trails accessible to competent supervisory authorities.
+      - Assess risk of discrimination and refoulement violations before and during operation.
+      - Comply with applicable GDPR obligations for processing of sensitive migration-related data.
+
+  - id: annex_iii_8
+    name: Administration of Justice and Democratic Processes
+    description: >
+      AI systems intended to be used to assist judicial authorities in researching and
+      interpreting facts and the law and in applying the law to a concrete set of facts,
+      and AI intended to be used for influencing elections and referenda outcomes or
+      the voting behaviour of natural persons.
+    risk_level: high
+    article_reference: "Annex III, Point 8; Recitals 71–74"
+    signals:
+      keywords:
+        - sentencing recommendation
+        - sentencing advisory
+        - judicial decision support
+        - case outcome prediction
+        - legal risk scoring
+        - recidivism scoring
+        - legal research ai
+        - judgment prediction
+        - verdict prediction
+        - judicial analytics
+        - election influence
+        - voter targeting
+        - electoral profiling
+        - political micro-targeting
+        - democratic process
+        - voting behaviour
+      library_patterns:
+        - legal-bert
+        - lexnlp
+        - lawbert
+      cloud_services:
+        - lex machina
+        - casetext
+        - ross intelligence
+        - luminance
+        - kira systems
+        - relativity ai
+    required_actions:
+      - Conduct conformity assessment with specific focus on due process and rule-of-law safeguards.
+      - Implement mandatory human oversight; the AI must serve as a decision-support tool only.
+      - Prepare technical documentation demonstrating system cannot substitute judicial discretion.
+      - Register the system in the EU AI Act database (Article 49).
+      - Ensure complete audit trails of AI-assisted recommendations are retained per Article 12.
+      - Consult with national judicial councils or equivalent bodies before deployment.
+      - Assess the system for systematic bias across protected characteristics.
+      - For electoral AI systems, comply with additional requirements under applicable electoral law.

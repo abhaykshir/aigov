@@ -11,7 +11,44 @@ from rich.console import Console
 from rich.table import Table
 
 from aigov.core.engine import ScanResult
-from aigov.core.models import AISystemRecord
+from aigov.core.models import AISystemRecord, RiskLevel
+
+
+# ---------------------------------------------------------------------------
+# Risk-level display helpers
+# ---------------------------------------------------------------------------
+
+_RISK_COLORS: dict[RiskLevel, str] = {
+    RiskLevel.PROHIBITED:    "bold red",
+    RiskLevel.HIGH_RISK:     "dark_orange",
+    RiskLevel.LIMITED_RISK:  "yellow",
+    RiskLevel.MINIMAL_RISK:  "green",
+    RiskLevel.NEEDS_REVIEW:  "cyan",
+    RiskLevel.UNKNOWN:       "dim",
+}
+
+_RISK_ORDER = [
+    RiskLevel.PROHIBITED,
+    RiskLevel.HIGH_RISK,
+    RiskLevel.LIMITED_RISK,
+    RiskLevel.MINIMAL_RISK,
+    RiskLevel.NEEDS_REVIEW,
+]
+
+
+def _risk_cell(level: RiskLevel | None) -> str:
+    if level is None or level == RiskLevel.UNKNOWN:
+        return ""
+    color = _RISK_COLORS.get(level, "dim")
+    label = level.value.upper().replace("_", " ")
+    return f"[{color}]{label}[/{color}]"
+
+
+def _has_classifications(result: ScanResult) -> bool:
+    return any(
+        r.risk_classification and r.risk_classification not in (RiskLevel.UNKNOWN, None)
+        for r in result.records
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -32,10 +69,6 @@ def _sorted_breakdown(d: dict[str, int]) -> list[tuple[str, int]]:
 # JSON reporter
 # ---------------------------------------------------------------------------
 
-def _record_to_json(rec: AISystemRecord) -> dict:
-    return rec.to_dict()
-
-
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
     payload = {
         "aigov_version": "0.1.0",
@@ -50,7 +83,8 @@ def to_json(result: ScanResult, *, indent: int = 2) -> str:
             "by_jurisdiction": dict(_sorted_breakdown(result.by_jurisdiction)),
         },
         "warnings": result.warnings,
-        "findings": [_record_to_json(r) for r in result.records],
+        # classification_rationale is included via to_dict() → each finding
+        "findings": [r.to_dict() for r in result.records],
     }
     return json.dumps(payload, indent=indent, ensure_ascii=False)
 
@@ -93,6 +127,32 @@ def to_markdown(result: ScanResult) -> str:
             w(f"| {j} | {n} |\n")
         w("\n")
 
+    # Risk classification section (only when records have been classified)
+    if _has_classifications(result):
+        w("## Risk Classification (EU AI Act)\n\n")
+
+        counts: dict[RiskLevel, int] = {lvl: 0 for lvl in _RISK_ORDER}
+        high_risk_cats: dict[str, int] = {}
+
+        for rec in result.records:
+            lvl = rec.risk_classification or RiskLevel.UNKNOWN
+            if lvl in counts:
+                counts[lvl] = counts[lvl] + 1
+            if lvl == RiskLevel.HIGH_RISK:
+                cat = rec.tags.get("eu_ai_act_category") or "Unknown"
+                high_risk_cats[cat] = high_risk_cats.get(cat, 0) + 1
+
+        w("| Risk Level | Count | Notes |\n|------------|-------|-------|\n")
+        for lvl in _RISK_ORDER:
+            n = counts.get(lvl, 0)
+            notes = ""
+            if lvl == RiskLevel.HIGH_RISK and high_risk_cats:
+                notes = "; ".join(
+                    f"{cat} ({c})" for cat, c in sorted(high_risk_cats.items())
+                )
+            w(f"| {lvl.value.upper().replace('_', ' ')} | {n} | {notes} |\n")
+        w("\n")
+
     if result.warnings:
         w("## Warnings\n\n")
         for warning in result.warnings:
@@ -103,18 +163,30 @@ def to_markdown(result: ScanResult) -> str:
     if not result.records:
         w("_No AI systems detected._\n")
     else:
-        w("| # | Name | Type | Provider | Jurisdiction | Confidence | Location |\n")
-        w("|---|------|------|----------|--------------|------------|----------|\n")
+        classified = _has_classifications(result)
+        header = "| # | Name | Type | Provider | Jurisdiction | Confidence | Location |"
+        sep    = "|---|------|------|----------|--------------|------------|----------|"
+        if classified:
+            header += " Risk | Category |"
+            sep    += " ---- | -------- |"
+        w(header + "\n")
+        w(sep + "\n")
+
         for i, rec in enumerate(result.records, start=1):
             jur = rec.tags.get("origin_jurisdiction", "XX")
             loc = rec.source_location
-            # Truncate long paths for readability
             if len(loc) > 60:
                 loc = "..." + loc[-57:]
-            w(
+            row = (
                 f"| {i} | {rec.name} | {rec.system_type.value} | {rec.provider} "
-                f"| {jur} | {rec.confidence:.0%} | `{loc}` |\n"
+                f"| {jur} | {rec.confidence:.0%} | `{loc}` |"
             )
+            if classified:
+                lvl = rec.risk_classification
+                lvl_str = lvl.value.upper().replace("_", " ") if lvl else ""
+                cat_str = rec.tags.get("eu_ai_act_category", "")
+                row += f" {lvl_str} | {cat_str} |"
+            w(row + "\n")
 
     return buf.getvalue()
 
@@ -131,6 +203,8 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
         console.print("[yellow]No AI systems detected.[/yellow]")
         return
 
+    classified = _has_classifications(result)
+
     table = Table(
         title=f"AI Systems Found ({result.total_found})",
         show_lines=False,
@@ -143,6 +217,9 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
     table.add_column("Jurisdiction", style="yellow", width=12, no_wrap=True)
     table.add_column("Confidence", width=11, no_wrap=True)
     table.add_column("Location", style="dim", min_width=24)
+    if classified:
+        table.add_column("Risk", min_width=14, no_wrap=True)
+        table.add_column("Category", style="dim", min_width=20)
 
     for i, rec in enumerate(result.records, start=1):
         jur = rec.tags.get("origin_jurisdiction", "XX")
@@ -150,7 +227,8 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
         loc = rec.source_location
         if len(loc) > 55:
             loc = "..." + loc[-52:]
-        table.add_row(
+
+        row: list[str] = [
             str(i),
             rec.name,
             rec.system_type.value,
@@ -158,10 +236,58 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
             jur,
             confidence_bar,
             loc,
-        )
+        ]
+        if classified:
+            row.append(_risk_cell(rec.risk_classification))
+            row.append(rec.tags.get("eu_ai_act_category", ""))
+
+        table.add_row(*row)
 
     console.print(table)
     _print_summary_line(result, console)
+
+
+def print_risk_summary(result: ScanResult, console: Console | None = None) -> None:
+    """Print a risk-level breakdown table for classified results."""
+    if console is None:
+        console = Console()
+
+    if not _has_classifications(result):
+        return
+
+    counts: dict[RiskLevel, int] = {lvl: 0 for lvl in _RISK_ORDER}
+    high_risk_cats: dict[str, int] = {}
+
+    for rec in result.records:
+        lvl = rec.risk_classification or RiskLevel.UNKNOWN
+        if lvl in counts:
+            counts[lvl] += 1
+        if lvl == RiskLevel.HIGH_RISK:
+            cat = rec.tags.get("eu_ai_act_category") or "Unknown"
+            high_risk_cats[cat] = high_risk_cats.get(cat, 0) + 1
+
+    table = Table(
+        title="EU AI Act Risk Summary",
+        show_lines=False,
+        highlight=False,
+    )
+    table.add_column("Risk Level", style="bold", min_width=16)
+    table.add_column("Count", width=7, justify="right")
+    table.add_column("Notes", style="dim", min_width=32)
+
+    for lvl in _RISK_ORDER:
+        n = counts.get(lvl, 0)
+        color = _RISK_COLORS.get(lvl, "dim")
+        label = f"[{color}]{lvl.value.upper().replace('_', ' ')}[/{color}]"
+        notes = ""
+        if lvl == RiskLevel.HIGH_RISK and high_risk_cats:
+            notes = "; ".join(
+                f"{cat} ({c})" for cat, c in sorted(high_risk_cats.items())
+            )
+        table.add_row(label, str(n) if n > 0 else "-", notes)
+
+    console.print()
+    console.print(table)
 
 
 def _confidence_bar(confidence: float) -> str:

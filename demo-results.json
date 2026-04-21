@@ -1,0 +1,197 @@
+{
+  "aigov_version": "0.1.0",
+  "generated_at": "2026-04-21T05:17:09.769391+00:00",
+  "summary": {
+    "total_found": 7,
+    "duration_seconds": 0.018,
+    "scanners_run": [
+      "code.python_imports",
+      "code.api_keys",
+      "config.mcp_servers"
+    ],
+    "scanned_paths": [
+      "demo"
+    ],
+    "by_type": {
+      "api_service": 5,
+      "mcp_server": 2
+    },
+    "by_provider": {
+      "Anthropic": 3,
+      "OpenAI": 2,
+      "database-query": 1,
+      "slack-notifications": 1
+    },
+    "by_jurisdiction": {
+      "US": 5,
+      "XX": 2
+    }
+  },
+  "warnings": [],
+  "findings": [
+    {
+      "id": "6c559aa9815ae001",
+      "name": "Anthropic API Key detected",
+      "description": "Anthropic API Key found in source file — value redacted per security policy",
+      "source_scanner": "code.api_keys",
+      "source_location": "demo\\.env:5",
+      "discovery_timestamp": "2026-04-21T05:17:09.654443+00:00",
+      "confidence": 0.95,
+      "system_type": "api_service",
+      "provider": "Anthropic",
+      "model_identifier": null,
+      "deployment_type": "cloud_api",
+      "data_categories": [],
+      "risk_classification": "minimal_risk",
+      "classification_rationale": "No EU AI Act risk signals detected in name, description, source location, or provider. Classified as MINIMAL_RISK by default.",
+      "tags": {
+        "key_type": "Anthropic API Key",
+        "key_preview": "sk-a****",
+        "origin_jurisdiction": "US",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "",
+        "eu_ai_act_article": ""
+      }
+    },
+    {
+      "id": "c21d3f9dd423311e",
+      "name": "database-query",
+      "description": "MCP server 'database-query', command: npx, transport: stdio",
+      "source_scanner": "config.mcp_servers",
+      "source_location": "demo\\.mcp.json",
+      "discovery_timestamp": "2026-04-21T05:17:09.660669+00:00",
+      "confidence": 0.95,
+      "system_type": "mcp_server",
+      "provider": "database-query",
+      "model_identifier": null,
+      "deployment_type": "local",
+      "data_categories": [],
+      "risk_classification": "minimal_risk",
+      "classification_rationale": "No EU AI Act risk signals detected in name, description, source location, or provider. Classified as MINIMAL_RISK by default.",
+      "tags": {
+        "transport": "stdio",
+        "env_vars_passed": "2",
+        "env_var_names": "DB_CONNECTION_STRING,DB_READ_ONLY_TOKEN",
+        "source_client": "claude_code",
+        "origin_jurisdiction": "XX",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "",
+        "eu_ai_act_article": ""
+      }
+    },
+    {
+      "id": "dd7c9ca374b2d3b0",
+      "name": "slack-notifications",
+      "description": "MCP server 'slack-notifications', command: npx, transport: stdio",
+      "source_scanner": "config.mcp_servers",
+      "source_location": "demo\\.mcp.json",
+      "discovery_timestamp": "2026-04-21T05:17:09.660669+00:00",
+      "confidence": 0.95,
+      "system_type": "mcp_server",
+      "provider": "slack-notifications",
+      "model_identifier": null,
+      "deployment_type": "local",
+      "data_categories": [],
+      "risk_classification": "minimal_risk",
+      "classification_rationale": "No EU AI Act risk signals detected in name, description, source location, or provider. Classified as MINIMAL_RISK by default.",
+      "tags": {
+        "transport": "stdio",
+        "env_vars_passed": "1",
+        "env_var_names": "SLACK_BOT_TOKEN",
+        "source_client": "claude_code",
+        "origin_jurisdiction": "XX",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "",
+        "eu_ai_act_article": ""
+      }
+    },
+    {
+      "id": "77f7669d0d6afc12",
+      "name": "OpenAI via openai",
+      "description": "Import of 'openai' detected in Python source",
+      "source_scanner": "code.python_imports",
+      "source_location": "demo\\analytics\\fraud_detection.py:2",
+      "discovery_timestamp": "2026-04-21T05:17:09.649019+00:00",
+      "confidence": 0.85,
+      "system_type": "api_service",
+      "provider": "OpenAI",
+      "model_identifier": null,
+      "deployment_type": "cloud_api",
+      "data_categories": [],
+      "risk_classification": "minimal_risk",
+      "classification_rationale": "No EU AI Act risk signals detected in name, description, source location, or provider. Classified as MINIMAL_RISK by default.",
+      "tags": {
+        "origin_jurisdiction": "US",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "",
+        "eu_ai_act_article": ""
+      }
+    },
+    {
+      "id": "7987d520e6548299",
+      "name": "OpenAI via openai",
+      "description": "Import of 'openai' detected in Python source",
+      "source_scanner": "code.python_imports",
+      "source_location": "demo\\hiring\\resume_screener.py:2",
+      "discovery_timestamp": "2026-04-21T05:17:09.649019+00:00",
+      "confidence": 0.85,
+      "system_type": "api_service",
+      "provider": "OpenAI",
+      "model_identifier": null,
+      "deployment_type": "cloud_api",
+      "data_categories": [],
+      "risk_classification": "high_risk",
+      "classification_rationale": "Classified as HIGH_RISK under Annex III category 4 (Employment and Worker Management) (rule: 'Employment and Worker Management'). Evidence — keyword signals: 'resume screener'; cloud service: openai.",
+      "tags": {
+        "origin_jurisdiction": "US",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "Employment and Worker Management",
+        "eu_ai_act_article": "Annex III, Point 4; Recitals 55–57"
+      }
+    },
+    {
+      "id": "7fa69101fc4b7e98",
+      "name": "Anthropic via anthropic",
+      "description": "Import of 'anthropic' detected in Python source",
+      "source_scanner": "code.python_imports",
+      "source_location": "demo\\internal\\code_helper.py:2",
+      "discovery_timestamp": "2026-04-21T05:17:09.649019+00:00",
+      "confidence": 0.85,
+      "system_type": "api_service",
+      "provider": "Anthropic",
+      "model_identifier": null,
+      "deployment_type": "cloud_api",
+      "data_categories": [],
+      "risk_classification": "minimal_risk",
+      "classification_rationale": "No EU AI Act risk signals detected in name, description, source location, or provider. Classified as MINIMAL_RISK by default.",
+      "tags": {
+        "origin_jurisdiction": "US",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "",
+        "eu_ai_act_article": ""
+      }
+    },
+    {
+      "id": "7d9cac393ff2a554",
+      "name": "Anthropic via anthropic",
+      "description": "Import of 'anthropic' detected in Python source",
+      "source_scanner": "code.python_imports",
+      "source_location": "demo\\support\\customer_chatbot.py:2",
+      "discovery_timestamp": "2026-04-21T05:17:09.649019+00:00",
+      "confidence": 0.85,
+      "system_type": "api_service",
+      "provider": "Anthropic",
+      "model_identifier": null,
+      "deployment_type": "cloud_api",
+      "data_categories": [],
+      "risk_classification": "limited_risk",
+      "classification_rationale": "Classified as LIMITED_RISK under Article 50 transparency (Disclosure of AI Interaction — Conversational and Chatbot Systems) (rule: 'Disclosure of AI Interaction — Conversational and Chatbot Systems'). Evidence — keyword signals: 'chatbot'; library match: anthropic.",
+      "tags": {
+        "origin_jurisdiction": "US",
+        "confidence_adjustment": "high",
+        "eu_ai_act_category": "Disclosure of AI Interaction — Conversational and Chatbot Systems",
+        "eu_ai_act_article": "Article 50(1)"
+      }
+    }
+  ]
+}

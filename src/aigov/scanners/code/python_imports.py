@@ -118,18 +118,63 @@ def _record_id(file_path: str, lineno: int, provider: str) -> str:
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
+def _extract_names(tree: ast.AST) -> tuple[list[str], list[str]]:
+    """Return (func_names, class_names) extracted from AST definition nodes.
+
+    Only reads identifier names from def/async def/class declarations —
+    never accesses bodies, arguments, default values, decorators, or docstrings.
+    Dunder names (__init__ etc.) are omitted to reduce noise.
+    Names are returned in source order, deduplicated.
+    """
+    candidates: list[tuple[int, str, str]] = []  # (lineno, kind, name)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            candidates.append((getattr(node, "lineno", 0), "class", node.name))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            name = node.name
+            if not (name.startswith("__") and name.endswith("__")):
+                candidates.append((getattr(node, "lineno", 0), "func", name))
+
+    candidates.sort(key=lambda t: t[0])
+
+    func_names: list[str] = []
+    class_names: list[str] = []
+    seen_funcs: set[str] = set()
+    seen_classes: set[str] = set()
+    for _, kind, name in candidates:
+        if kind == "class" and name not in seen_classes:
+            seen_classes.add(name)
+            class_names.append(name)
+        elif kind == "func" and name not in seen_funcs:
+            seen_funcs.add(name)
+            func_names.append(name)
+
+    return func_names, class_names
+
+
+def _make_description(module_name: str, func_names: list[str], class_names: list[str]) -> str:
+    parts = [f"imports: {module_name}"]
+    if class_names:
+        parts.append(f"classes: {', '.join(class_names)}")
+    if func_names:
+        parts.append(f"functions: {', '.join(func_names)}")
+    return "; ".join(parts)
+
+
 def _make_record(
     file_path: str,
     lineno: int,
     module_name: str,
     lib: _LibraryDef,
     timestamp: datetime,
+    func_names: list[str],
+    class_names: list[str],
 ) -> AISystemRecord:
     source_location = f"{file_path}:{lineno}"
     return AISystemRecord(
         id=_record_id(file_path, lineno, lib.provider),
         name=f"{lib.provider} via {module_name}",
-        description=f"Import of '{module_name}' detected in Python source",
+        description=_make_description(module_name, func_names, class_names),
         source_scanner="code.python_imports",
         source_location=source_location,
         discovery_timestamp=timestamp,
@@ -155,6 +200,9 @@ def _scan_file(
     except OSError as exc:
         console.print(f"[yellow]Warning:[/yellow] skipping {file_path} (read error: {exc.strerror})")
         return []
+
+    # Extract definition names once per file; all records from this file share them.
+    func_names, class_names = _extract_names(tree)
 
     records: list[AISystemRecord] = []
     boto3_seen_at: int | None = None
@@ -186,7 +234,9 @@ def _scan_file(
                     continue
                 seen.add(dedup_key)
 
-                records.append(_make_record(str(file_path), lineno, module_name, lib, timestamp))
+                records.append(
+                    _make_record(str(file_path), lineno, module_name, lib, timestamp, func_names, class_names)
+                )
 
         # Detect boto3 AI usage via string literals: e.g. client("bedrock-runtime")
         elif boto3_seen_at is not None and isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -199,7 +249,9 @@ def _scan_file(
         dedup_key = (str(file_path), lib.provider)
         if dedup_key not in seen:
             seen.add(dedup_key)
-            records.append(_make_record(str(file_path), boto3_seen_at, "boto3", lib, timestamp))
+            records.append(
+                _make_record(str(file_path), boto3_seen_at, "boto3", lib, timestamp, func_names, class_names)
+            )
 
     return records
 
