@@ -23,7 +23,10 @@ def _source_slug(record: AISystemRecord) -> str:
     loc = record.source_location
     # Strip trailing line-number annotation (e.g. ":42" or "#L42")
     loc = re.sub(r'[:#]L?\d+$', '', loc)
-    stem = Path(loc).stem
+    # Split on both / and \ so Windows-style paths work on Linux runners too.
+    parts = re.split(r'[/\\]', loc)
+    filename = next((p for p in reversed(parts) if p), '')
+    stem = Path(filename).stem if filename else ''
     if stem and stem not in ('.', ''):
         return _slug(stem)
     return _slug(record.name)
