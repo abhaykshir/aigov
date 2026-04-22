@@ -4,12 +4,31 @@ version = "0.1.0"
 description = "AI Governance-as-Code CLI — discover, classify, and govern AI systems"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    { name = "Abhay K", email = "kshirabhay@gmail.com" },
+]
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "typer",
     "rich",
     "pyyaml",
     "gitpython",
 ]
+
+[project.urls]
+Homepage = "https://github.com/abhaykshir/aigov"
+Repository = "https://github.com/abhaykshir/aigov"
+Issues = "https://github.com/abhaykshir/aigov/issues"
 
 [project.optional-dependencies]
 aws = ["boto3"]
