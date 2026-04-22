@@ -293,6 +293,32 @@ class TestBedrockScan:
         claude = next(r for r in result if "Claude 3 Sonnet" in r.name)
         assert "claude" in claude.model_identifier.lower()
 
+    def test_foundation_model_is_catalog_only(self):
+        result = self._scan_with(bedrock_models=_BEDROCK_MODELS)
+        for r in result:
+            if "Bedrock:" in r.name:
+                assert r.tags.get("catalog_only") == "true"
+
+    def test_foundation_model_description_notes_catalog(self):
+        result = self._scan_with(bedrock_models=_BEDROCK_MODELS)
+        for r in result:
+            if "Bedrock:" in r.name:
+                assert "catalog" in r.description.lower()
+
+    def test_custom_model_is_not_catalog_only(self):
+        custom = [{"modelArn": "arn:aws:bedrock:us-east-1:123:custom-model/my-ft",
+                   "modelName": "my-ft", "baseModelId": "amazon.titan-text-v1"}]
+        result = self._scan_with(bedrock_models=[], bedrock_custom=custom)
+        rec = next(r for r in result if "my-ft" in r.name)
+        assert rec.tags.get("catalog_only") != "true"
+
+    def test_bedrock_agent_is_not_catalog_only(self):
+        agents = [{"agentId": "a1", "agentName": "MyAgent", "agentStatus": "PREPARED",
+                   "agentArn": "arn:aws:bedrock:us-east-1::agent/a1"}]
+        result = self._scan_with(bedrock_models=[], bedrock_agents=agents)
+        rec = next(r for r in result if "MyAgent" in r.name)
+        assert rec.tags.get("catalog_only") != "true"
+
     def test_bedrock_agent_discovered(self):
         agents = [{"agentId": "abc123", "agentName": "ResumeAgent", "agentStatus": "PREPARED",
                    "agentArn": "arn:aws:bedrock:us-east-1::agent/abc123"}]

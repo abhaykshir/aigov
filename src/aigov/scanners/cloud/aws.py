@@ -104,7 +104,10 @@ class AwsScanner(BaseScanner):
         except Exception:
             return []
 
-        # Foundation models — credential errors here abort the whole service
+        # Foundation models — the Bedrock API returns the full regional catalog;
+        # there is no API filter for account-level model access status.
+        # Records are tagged catalog_only=true to distinguish them from
+        # actively provisioned resources (custom models, agents, KBs, guardrails).
         try:
             resp = client.list_foundation_models()
             for m in resp.get("modelSummaries", []):
@@ -118,7 +121,8 @@ class AwsScanner(BaseScanner):
                     name=f"Bedrock: {m.get('modelName', model_id)}",
                     description=(
                         f"AWS Bedrock foundation model {model_id} "
-                        f"(provider: {m.get('providerName', 'unknown')})"
+                        f"(provider: {m.get('providerName', 'unknown')}) "
+                        f"[catalog entry — account access not verified]"
                     ),
                     source_scanner=self.name,
                     source_location=arn,
@@ -132,6 +136,7 @@ class AwsScanner(BaseScanner):
                         "origin_jurisdiction": "US",
                         "aws_service": "bedrock",
                         "bedrock_model_provider": m.get("providerName", ""),
+                        "catalog_only": "true",
                     },
                 ))
         except (ClientError, NoCredentialsError) as exc:
