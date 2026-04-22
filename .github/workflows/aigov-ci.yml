@@ -15,18 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Install uv
+        run: pip install uv
 
       - name: Install aigov
-        run: uv pip install -e .
+        run: uv pip install --system -e .
 
       - name: Run aigov scan
         run: |
-          uv run aigov scan . \
+          aigov scan . \
             --classify \
             --output json \
             --out-file aigov-results.json
@@ -48,14 +49,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
+      - name: Install uv
+        run: pip install uv
 
       - name: Install aigov + test dependencies
-        run: uv pip install -e . pytest
+        run: uv pip install --system -e . pytest
 
       - name: Run tests
-        run: uv run pytest -q
+        run: pytest -q
