@@ -155,7 +155,7 @@ Contributions are welcome — especially new scanners, classification rules, and
 
 ## Governance
 
-This project is maintained by [Abhay Kshirsagar](https://github.com/abhaykshir). See [GOVERNANCE.md](GOVERNANCE.md) for the decision process and regulatory accuracy policy.
+This project is maintained by [Abhay K](https://github.com/abhaykshir). See [GOVERNANCE.md](GOVERNANCE.md) for the decision process and regulatory accuracy policy.
 
 ---
 
