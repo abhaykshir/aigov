@@ -1,0 +1,113 @@
+name: aigov AI Governance Scan
+description: >
+  Scan your repository for AI systems, classify them against the EU AI Act,
+  and fail the workflow if any prohibited (or other configured) systems are found.
+  Operates entirely on checked-in code — no cloud credentials required.
+author: aigov
+
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  scan-paths:
+    description: Space-separated paths to scan (relative to the repo root).
+    default: "."
+    required: false
+
+  classify:
+    description: >
+      Run EU AI Act risk classification after scanning.
+      Set to "false" to skip classification (the fail-on check will never
+      trigger when classification is disabled, since all records remain "unknown").
+    default: "true"
+    required: false
+
+  frameworks:
+    description: Comma-separated governance frameworks to classify against.
+    default: "eu_ai_act"
+    required: false
+
+  fail-on:
+    description: >
+      Comma-separated risk levels that cause the workflow step to fail.
+      Valid values: prohibited, high_risk, limited_risk, minimal_risk,
+      needs_review, unknown.
+      Example: "prohibited,high_risk"
+    default: "prohibited"
+    required: false
+
+  output-format:
+    description: >
+      Format for the saved results file: json or markdown.
+      The risk policy check always reads JSON, so results are always
+      written as JSON. Markdown output support is planned for a future release.
+    default: "json"
+    required: false
+
+  output-file:
+    description: Path (relative to workspace root) where scan results are saved.
+    default: "aigov-results.json"
+    required: false
+
+outputs:
+  results-file:
+    description: Path to the JSON scan results file.
+    value: ${{ steps.scan.outputs.results-file }}
+
+  total-found:
+    description: Total number of AI systems discovered.
+    value: ${{ steps.scan.outputs.total-found }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install aigov
+      shell: bash
+      run: pip install aigov
+
+    - name: Run aigov scan
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATHS: ${{ inputs.scan-paths }}
+        FRAMEWORKS: ${{ inputs.frameworks }}
+        OUTPUT_FILE: ${{ inputs.output-file }}
+        CLASSIFY: ${{ inputs.classify }}
+      run: |
+        CLASSIFY_FLAG=""
+        if [ "$CLASSIFY" = "true" ]; then
+          CLASSIFY_FLAG="--classify --frameworks $FRAMEWORKS"
+        fi
+
+        # SC2086: word-splitting on SCAN_PATHS and CLASSIFY_FLAG is intentional
+        # (they may contain multiple space-separated values / flags)
+        # shellcheck disable=SC2086
+        aigov scan $SCAN_PATHS $CLASSIFY_FLAG \
+          --output json \
+          --out-file "$OUTPUT_FILE"
+
+        echo "results-file=$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+
+        TOTAL=$(python - "$OUTPUT_FILE" <<'PYEOF'
+        import json, sys
+        try:
+            data = json.loads(open(sys.argv[1]).read())
+            print(data.get("summary", {}).get("total_found", 0))
+        except Exception:
+            print(0)
+        PYEOF
+        )
+        echo "total-found=$TOTAL" >> "$GITHUB_OUTPUT"
+
+    - name: Evaluate risk policy
+      shell: bash
+      env:
+        OUTPUT_FILE: ${{ inputs.output-file }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: aigov-check "$OUTPUT_FILE" --fail-on "$FAIL_ON"

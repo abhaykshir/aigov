@@ -1,0 +1,61 @@
+name: aigov CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Job 1: Run aigov against the repo itself and upload the report
+  # --------------------------------------------------------------------------
+  governance-scan:
+    name: AI Governance Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install aigov
+        run: uv pip install -e .
+
+      - name: Run aigov scan
+        run: |
+          uv run aigov scan . \
+            --classify \
+            --output json \
+            --out-file aigov-results.json
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aigov-results
+          path: aigov-results.json
+          if-no-files-found: warn
+
+  # --------------------------------------------------------------------------
+  # Job 2: Run the full test suite
+  # --------------------------------------------------------------------------
+  test:
+    name: Test Suite (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install aigov + test dependencies
+        run: uv pip install -e . pytest
+
+      - name: Run tests
+        run: uv run pytest -q
