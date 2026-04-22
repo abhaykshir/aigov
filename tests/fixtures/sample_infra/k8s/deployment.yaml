@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: text-generation-inference
+  namespace: ml-serving
+  labels:
+    app: tgi
+    version: "2.0.1"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tgi
+  template:
+    metadata:
+      labels:
+        app: tgi
+    spec:
+      containers:
+        - name: tgi
+          image: huggingface/text-generation-inference:2.0.1
+          ports:
+            - containerPort: 80
+          env:
+            - name: HF_MODEL_ID
+              value: "meta-llama/Llama-2-7b-chat-hf"
+            - name: OPENAI_API_KEY
+              value: "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            - name: NUM_SHARD
+              value: "1"
+          resources:
+            requests:
+              memory: "14Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "16Gi"
+              cpu: "8"
+              nvidia.com/gpu: "1"

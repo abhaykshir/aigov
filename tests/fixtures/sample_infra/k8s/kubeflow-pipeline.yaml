@@ -1,0 +1,23 @@
+apiVersion: pipelines.kubeflow.org/v1beta1
+kind: Pipeline
+metadata:
+  name: training-pipeline
+  namespace: kubeflow
+spec:
+  description: "ML training pipeline for sentiment analysis model"
+  templates:
+    - name: preprocess
+      container:
+        image: python:3.11
+        command: ["python", "preprocess.py"]
+    - name: train
+      container:
+        image: pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
+        command: ["python", "train.py"]
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+    - name: evaluate
+      container:
+        image: python:3.11
+        command: ["python", "evaluate.py"]

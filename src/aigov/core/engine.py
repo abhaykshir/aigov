@@ -28,12 +28,18 @@ def _build_registry() -> dict[str, type[BaseScanner]]:
     from aigov.scanners.code.api_keys import ApiKeysScanner
     from aigov.scanners.config.mcp_servers import McpServersScanner
     from aigov.scanners.cloud.aws import AwsScanner
+    from aigov.scanners.infra.docker import DockerScanner
+    from aigov.scanners.infra.terraform import TerraformScanner
+    from aigov.scanners.infra.kubernetes import KubernetesScanner
 
     scanners: list[type[BaseScanner]] = [
         PythonImportsScanner,
         ApiKeysScanner,
         McpServersScanner,
         AwsScanner,
+        DockerScanner,
+        TerraformScanner,
+        KubernetesScanner,
     ]
     return {cls().name: cls for cls in scanners}
 

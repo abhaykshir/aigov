@@ -1,0 +1,26 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: sklearn-classifier
+  namespace: ml-serving
+spec:
+  name: sklearn-classifier
+  predictors:
+    - name: default
+      replicas: 1
+      graph:
+        name: classifier
+        implementation: SKLEARN_SERVER
+        modelUri: gs://acme-models/sklearn-classifier/v3
+        envSecretRefName: seldon-init-container-secret
+      componentSpecs:
+        - spec:
+            containers:
+              - name: classifier
+                resources:
+                  requests:
+                    memory: "1Gi"
+                    cpu: "500m"
+                  limits:
+                    memory: "2Gi"
+                    cpu: "1"
