@@ -8,7 +8,10 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from aigov.cli.hooks import app as _hooks_app
+
 app = typer.Typer(help="AI Governance-as-Code CLI — discover, classify, and govern AI systems.")
+app.add_typer(_hooks_app, name="hooks")
 console = Console()
 
 _VERSION = "aigov 0.1.0"

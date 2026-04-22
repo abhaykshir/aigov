@@ -207,6 +207,11 @@ def classify_results(scan_result: ScanResult, frameworks: list[str]) -> ScanResu
         classifier = EUAIActClassifier()
         records = [classifier.classify(r) for r in records]
 
+    # Apply allowlist — auto-discovers .aigov-allowlist.yaml in cwd; no-op if absent.
+    from aigov.core.allowlist import Allowlist
+    allowlist = Allowlist.load()
+    records = allowlist.apply(records)
+
     new_result = dataclasses.replace(scan_result, records=records)
     new_result._compute_summaries()
     return new_result
