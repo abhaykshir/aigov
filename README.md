@@ -68,6 +68,9 @@ aigov scan . --output markdown --out-file AIINVENTORY.md
 | `code.api_keys` | Hardcoded AI service API keys in source, config, and env files — values are never stored, only redacted previews |
 | `config.mcp_servers` | MCP server configs from Claude Desktop, Cursor, Windsurf, VS Code, and project-level `.mcp.json` files |
 | `cloud.aws` | AWS Bedrock foundation models, SageMaker endpoints, Comprehend, Rekognition, and Lex resources (`pip install aigov[aws]`) |
+| `infra.docker` | Detects AI base images, model files, and ML frameworks in Dockerfiles and docker-compose |
+| `infra.terraform` | Discovers AI service provisioning in Terraform/OpenTofu across AWS, Azure, and GCP |
+| `infra.kubernetes` | Finds GPU workloads, AI containers, and ML platform CRDs in Kubernetes manifests |
 
 All findings include `origin_jurisdiction` (ISO 3166-1) for geography-based policy filtering.
 
