@@ -11,6 +11,9 @@ dependencies = [
     "gitpython",
 ]
 
+[project.optional-dependencies]
+aws = ["boto3"]
+
 [project.scripts]
 aigov = "aigov.cli.main:app"
 

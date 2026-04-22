@@ -17,15 +17,23 @@ if TYPE_CHECKING:
 # Registry — populated at module load so imports stay lazy
 # ---------------------------------------------------------------------------
 
+# Scanners that require explicit opt-in (--scanners <name>) and are never
+# included in a default run.  Typically cloud scanners that need credentials
+# and are slow/costly to run speculatively.
+_OPT_IN_SCANNERS: frozenset[str] = frozenset({"cloud.aws"})
+
+
 def _build_registry() -> dict[str, type[BaseScanner]]:
     from aigov.scanners.code.python_imports import PythonImportsScanner
     from aigov.scanners.code.api_keys import ApiKeysScanner
     from aigov.scanners.config.mcp_servers import McpServersScanner
+    from aigov.scanners.cloud.aws import AwsScanner
 
     scanners: list[type[BaseScanner]] = [
         PythonImportsScanner,
         ApiKeysScanner,
         McpServersScanner,
+        AwsScanner,
     ]
     return {cls().name: cls for cls in scanners}
 
@@ -99,7 +107,9 @@ class ScanEngine:
         self._paths = paths
         reg = _registry()
         if enabled_scanners is None:
-            self._scanners: list[BaseScanner] = [cls() for cls in reg.values()]
+            self._scanners: list[BaseScanner] = [
+                cls() for name, cls in reg.items() if name not in _OPT_IN_SCANNERS
+            ]
         else:
             unknown = [n for n in enabled_scanners if n not in reg]
             if unknown:
