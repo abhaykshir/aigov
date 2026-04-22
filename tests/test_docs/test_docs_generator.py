@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from aigov.core.docs_generator import DocsGenerator, _slug, _safe_tags
+from aigov.core.docs_generator import DocsGenerator, _slug, _source_slug, _safe_tags
 from aigov.core.models import (
     AISystemRecord,
     AISystemType,
@@ -58,6 +58,7 @@ def high_risk_record() -> AISystemRecord:
         record_id="hr-1",
         provider="OpenAI",
         model_id="gpt-4o",
+        source_location="src/resume_screener.py:42",
         tags={
             "eu_ai_act_category": "Employment and Worker Management",
             "eu_ai_act_article": "Annex III §4",
@@ -74,6 +75,7 @@ def limited_risk_record() -> AISystemRecord:
         name="Customer Chatbot",
         record_id="lr-1",
         provider="Anthropic",
+        source_location="src/customer_chatbot.py:10",
         tags={
             "eu_ai_act_category": "Chatbot / Conversational AI",
             "eu_ai_act_article": "Article 50",
@@ -90,6 +92,7 @@ def prohibited_record() -> AISystemRecord:
         name="Social Scoring System",
         record_id="pb-1",
         provider="InternalML",
+        source_location="src/social_scoring_system.py:5",
         tags={
             "eu_ai_act_category": "Social Scoring by Public Authorities",
             "eu_ai_act_article": "Article 5(1)(c)",
@@ -142,6 +145,51 @@ class TestSlug:
 
     def test_lowercase(self):
         assert _slug("MySystem") == "mysystem"
+
+
+# ---------------------------------------------------------------------------
+# Source slug helper
+# ---------------------------------------------------------------------------
+
+class TestSourceSlug:
+    def test_extracts_stem_from_unix_path(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location="src/fraud_detection.py:2")
+        assert _source_slug(rec) == "fraud_detection"
+
+    def test_extracts_stem_from_windows_path(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location=r"demo\analytics\fraud_detection.py:2")
+        assert _source_slug(rec) == "fraud_detection"
+
+    def test_strips_line_number_colon(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location="src/resume_screener.py:42")
+        assert _source_slug(rec) == "resume_screener"
+
+    def test_strips_line_number_hash(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location="src/app.py#L10")
+        assert _source_slug(rec) == "app"
+
+    def test_strips_line_number_hash_no_L(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location="src/app.py#10")
+        assert _source_slug(rec) == "app"
+
+    def test_falls_back_to_name_when_no_file(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, name="My System", source_location="")
+        assert _source_slug(rec) == "my_system"
+
+    def test_falls_back_to_name_for_bare_dot(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, name="My System", source_location=".")
+        assert _source_slug(rec) == "my_system"
+
+    def test_nested_path_uses_only_stem(self):
+        rec = _make_record(RiskLevel.HIGH_RISK, source_location="a/b/c/customer_chatbot.py:1")
+        assert _source_slug(rec) == "customer_chatbot"
+
+    def test_mcp_json_config_file(self):
+        rec = _make_record(RiskLevel.LIMITED_RISK, source_location=r"demo\.mcp.json")
+        # ".mcp" stem starts with dot — _slug strips leading underscores,
+        # and Path(".mcp.json").stem == ".mcp" which slugifies to "mcp"
+        result = _source_slug(rec)
+        assert len(result) > 0  # should not be empty
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +322,7 @@ class TestHighRiskDoc:
     def test_prefilled_source_location(self, generator, high_risk_record, tmp_path):
         generator.generate([high_risk_record], str(tmp_path))
         content = (tmp_path / "resume_screener_annex_iv.md").read_text(encoding="utf-8")
-        assert "src/app.py:10" in content
+        assert "src/resume_screener.py:42" in content
 
     def test_prefilled_discovery_date(self, generator, high_risk_record, tmp_path):
         generator.generate([high_risk_record], str(tmp_path))
@@ -341,7 +389,7 @@ class TestLimitedRiskDoc:
         content = (tmp_path / "customer_chatbot_transparency.md").read_text(encoding="utf-8")
         assert "Customer Chatbot" in content
         assert "Anthropic" in content
-        assert "src/app.py:10" in content
+        assert "src/customer_chatbot.py:10" in content
 
     def test_transparency_requirements_section(self, generator, limited_risk_record, tmp_path):
         generator.generate([limited_risk_record], str(tmp_path))
@@ -516,7 +564,8 @@ class TestSecurity:
             },
         )
         generator.generate([rec], str(tmp_path))
-        content = (tmp_path / "leaky_system_annex_iv.md").read_text(encoding="utf-8")
+        # default source_location="src/app.py:10" → slug "app"
+        content = (tmp_path / "app_annex_iv.md").read_text(encoding="utf-8")
         assert "sk-an****" not in content
 
     def test_key_type_not_in_annex_iv(self, generator, tmp_path):
@@ -530,9 +579,8 @@ class TestSecurity:
             },
         )
         generator.generate([rec], str(tmp_path))
-        content = (tmp_path / "leaky_system_annex_iv.md").read_text(encoding="utf-8")
-        # "key_type" as a tag label should not appear (the value "Anthropic API Key" could
-        # appear as provider info but not as a credential label)
+        # default source_location="src/app.py:10" → slug "app"
+        content = (tmp_path / "app_annex_iv.md").read_text(encoding="utf-8")
         assert "key_preview" not in content
 
     def test_no_raw_credential_patterns_in_any_doc(self, generator, tmp_path):
@@ -556,7 +604,7 @@ class TestSecurity:
         """File paths are safe metadata — they should appear in docs."""
         generator.generate([high_risk_record], str(tmp_path))
         content = (tmp_path / "resume_screener_annex_iv.md").read_text(encoding="utf-8")
-        assert "src/app.py:10" in content
+        assert "src/resume_screener.py:42" in content
 
     def test_provider_name_allowed(self, generator, high_risk_record, tmp_path):
         """Provider names are safe metadata — they should appear in docs."""

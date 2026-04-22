@@ -16,6 +16,19 @@ def _slug(name: str) -> str:
     return re.sub(r'[^\w]+', '_', name.lower()).strip('_')[:60]
 
 
+def _source_slug(record: AISystemRecord) -> str:
+    """Derive a slug from the source file stem (e.g. 'fraud_detection' from
+    'demo\\analytics\\fraud_detection.py:2').  Falls back to _slug(record.name)
+    when source_location contains no recognisable file name."""
+    loc = record.source_location
+    # Strip trailing line-number annotation (e.g. ":42" or "#L42")
+    loc = re.sub(r'[:#]L?\d+$', '', loc)
+    stem = Path(loc).stem
+    if stem and stem not in ('.', ''):
+        return _slug(stem)
+    return _slug(record.name)
+
+
 def _unique_slug(base: str, used: dict[str, int]) -> str:
     if base not in used:
         used[base] = 1
@@ -580,7 +593,7 @@ class DocsGenerator:
 
         for record in records:
             risk = record.risk_classification or RiskLevel.UNKNOWN
-            slug = _unique_slug(_slug(record.name), used_slugs)
+            slug = _unique_slug(_source_slug(record), used_slugs)
 
             if risk == RiskLevel.HIGH_RISK:
                 fname = f"{slug}_annex_iv.md"
