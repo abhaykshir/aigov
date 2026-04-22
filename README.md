@@ -1,14 +1,33 @@
 # aigov
 
-**aigov — AI Governance-as-Code CLI. Discover, classify, and govern AI systems across your infrastructure.**
+**AI Governance-as-Code CLI — discover, classify, and govern AI systems across your infrastructure.**
+
+[![CI](https://github.com/abhaykshir/aigov/actions/workflows/aigov-ci.yml/badge.svg)](https://github.com/abhaykshir/aigov/actions/workflows/aigov-ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-370%2B-brightgreen.svg)](tests/)
 
 ---
 
-## Why
+## tl;dr
 
-The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisation deploying AI in or selling into the EU needs a documented inventory of its AI systems — but most engineering teams have no idea how many AI integrations actually exist in their codebases. Shadow AI (ungoverned LLM integrations added by individual developers) is endemic. No open-source tool exists to automatically discover and inventory AI usage the way tools like `trivy` or `grype` handle CVEs.
+aigov scans your codebase, CI pipeline, and cloud infrastructure to automatically discover every AI system in use, classify each one against the EU AI Act, and flag the compliance gaps your team needs to close. It works like `trivy` for CVEs — but for AI governance risk. Built for engineering teams who must achieve EU AI Act compliance before the August 2026 enforcement deadline.
 
-aigov is that tool.
+---
+
+## What problem are we solving?
+
+The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisation deploying AI in or selling into the EU must maintain a documented inventory of its AI systems — yet most engineering teams have no idea how many AI integrations actually live in their codebases. Studies show 80%+ of knowledge workers use AI tools without formal approval, creating pervasive "shadow AI" that nobody has inventoried or risk-assessed. No open-source tool existed to automatically discover and inventory AI usage the way `trivy` or `grype` handle CVEs. aigov fills that gap — run one command, get a full AI inventory with EU AI Act risk classifications.
+
+---
+
+## What does aigov do?
+
+aigov runs a four-stage pipeline: **discover** AI systems from imports, API keys, MCP configs, and cloud resources; **classify** each finding against the EU AI Act risk tiers; **gap-analyze** what compliance controls are missing; and **generate** draft documentation and conformity declarations. The full pipeline runs in a single command:
+
+```bash
+aigov scan . --classify --gaps --docs
+```
 
 ---
 
@@ -16,25 +35,25 @@ aigov is that tool.
 
 ```bash
 pip install aigov
-aigov scan .
+aigov scan . --classify
 ```
 
-```
-                          AI Systems Found (8)
-+-----------------------------------------------------------------------+
-| # | Name                   | Type        | Provider    | Juris | Conf  |
-|---+------------------------+-------------+-------------+-------+-------|
-| 1 | Anthropic API Key      | api_service | Anthropic   | US    | ##### |
-| 2 | OpenAI via openai      | api_service | OpenAI      | US    | ##### |
-| 3 | sk-ant-api03-***       | api_service | Anthropic   | US    | ##### |
-| 4 | filesystem             | mcp_server  | filesystem  | XX    | ##### |
-| 5 | github                 | mcp_server  | github      | US    | ##### |
-| 6 | LangChain via langchain| agent       | LangChain   | US    | ####. |
-| 7 | DeepSeek via deepseek  | api_service | DeepSeek    | CN    | ####. |
-| 8 | HuggingFace via transf.| model       | HuggingFace | US    | ####. |
-+-----------------------------------------------------------------------+
+Example output:
 
-Found 8 AI systems (3 API services, 2 MCP servers, 1 agent, 1 model) across 6 providers
+```
+                        AI Systems Found (6)
+┌──────────────────────────────────────────────────────────────────────┐
+│  #  Name                   Type         Provider     Risk            │
+├──────────────────────────────────────────────────────────────────────┤
+│  1  openai (gpt-4o)        api_service  OpenAI       ⚠  limited     │
+│  2  anthropic (claude-3)   api_service  Anthropic    ⚠  limited     │
+│  3  rekognition             model        AWS          🔴 high_risk   │
+│  4  filesystem              mcp_server   —            ✓  minimal     │
+│  5  langchain               agent        LangChain    ⚠  limited     │
+│  6  deepseek                api_service  DeepSeek     ⚠  limited     │
+└──────────────────────────────────────────────────────────────────────┘
+
+Found 6 AI systems · 1 high-risk · 3 limited-risk · 2 minimal-risk
 ```
 
 Export to JSON or Markdown for compliance evidence:
@@ -46,26 +65,74 @@ aigov scan . --output markdown --out-file AIINVENTORY.md
 
 ---
 
-## What It Detects
+## Scanners
 
 | Scanner | What it finds |
 |---------|--------------|
-| `code.python_imports` | AI/ML library imports in Python source files — OpenAI, Anthropic, LangChain, HuggingFace, DeepSeek, and 20+ others mapped to provider and jurisdiction |
-| `code.api_keys` | AI service API keys and credentials committed or hardcoded in source, config, and env files — values are never stored, only redacted previews |
-| `config.mcp_servers` | MCP (Model Context Protocol) server configurations from Claude Desktop, Cursor, Windsurf, VS Code, and project-level `.mcp.json` files |
+| `code.python_imports` | AI/ML library imports in Python source — OpenAI, Anthropic, LangChain, HuggingFace, DeepSeek, and 20+ others mapped to provider and jurisdiction |
+| `code.api_keys` | Hardcoded AI service API keys in source, config, and env files — values are never stored, only redacted previews |
+| `config.mcp_servers` | MCP server configs from Claude Desktop, Cursor, Windsurf, VS Code, and project-level `.mcp.json` files |
+| `cloud.aws` | AWS Bedrock foundation models, SageMaker endpoints, Comprehend, Rekognition, and Lex resources (`pip install aigov[aws]`) |
 
-All findings include `origin_jurisdiction` (ISO 3166-1) so you can filter by geography for policy reviews.
+All findings include `origin_jurisdiction` (ISO 3166-1) for geography-based policy filtering.
 
 ---
 
-## Security Principles
+## Classification Frameworks
 
-See [SECURITY.md](SECURITY.md) for the full policy. In brief:
+| Framework | Articles covered | Status |
+|-----------|-----------------|--------|
+| EU AI Act | Article 5 (prohibited practices), Annex III (high-risk categories), Article 50 (transparency obligations) | **Available** |
+| Colorado AI Act (SB 205) | High-risk AI system obligations for Colorado residents | Roadmap |
+| NIST AI RMF | Govern, Map, Measure, Manage functions | Roadmap |
 
-1. **No secrets stored** — API keys are detected but never recorded. Only the key type, location, and a 4-char redacted preview (`sk-an****`) are kept.
-2. **Read-only** — aigov never modifies source files, cloud resources, or system configurations.
-3. **Local processing** — no telemetry, no external API calls, no data leaves your machine.
-4. **Minimal dependencies** — small, auditable dependency tree from trusted sources.
+---
+
+## CI/CD Integration
+
+Add aigov to your workflow to block deployments if prohibited AI systems are detected:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: abhaykshir/aigov@v1
+    with:
+      scan-paths: "."
+      classify: "true"
+      fail-on: "prohibited,high_risk"
+```
+
+The action fails the step on any finding at or above the configured risk level. See [`action.yml`](action.yml) for all inputs and outputs.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    CLI["CLI\naigov scan"] --> Engine["Scan Engine"]
+    Engine --> S1["code.python_imports"]
+    Engine --> S2["code.api_keys"]
+    Engine --> S3["config.mcp_servers"]
+    Engine --> S4["cloud.aws"]
+    S1 & S2 & S3 & S4 --> Records["AISystemRecord[]"]
+    Records --> Classifier["Classifier\n(EU AI Act)"]
+    Classifier --> Gaps["Gap Analyzer"]
+    Gaps --> Docs["Docs Generator"]
+    Docs --> Out1["JSON / Markdown"]
+    Docs --> Out2["Conformity Declarations"]
+```
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the full policy.
+
+- **No secrets stored** — API keys detected but never recorded; only type, location, and a 4-char redacted preview are kept
+- **Read-only** — never modifies source files, cloud resources, or system configurations
+- **Local processing** — no telemetry, no external API calls, no data leaves your machine
+- **Minimal dependencies** — small, auditable dependency tree from trusted sources with pinned versions
 
 ---
 
@@ -73,16 +140,27 @@ See [SECURITY.md](SECURITY.md) for the full policy. In brief:
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1 — Discovery | **Done** | Python import scanner, API key scanner, MCP server scanner |
-| 2 — Risk Classification | Next | Score findings against EU AI Act Annex III, Colorado AI Act SB 205 |
-| 3 — Documentation Generator | Planned | Auto-generate conformity declarations, data flow diagrams, DPIA stubs |
-| 4 — Cloud Scanners | Planned | AWS Bedrock, Azure OpenAI, GCP Vertex AI, SageMaker endpoint discovery |
+| 1 — Discovery | ✅ Done | Python imports, API keys, MCP server scanners |
+| 2 — Risk Classification | ✅ Done | EU AI Act Article 5, Annex III, Article 50 |
+| 3 — Gap Analysis | ✅ Done | Compliance gap analyzer — missing controls per finding |
+| 4 — Documentation Generator | ✅ Done | Draft conformity declarations and DPIA stubs |
+| 5 — Cloud Scanners | ✅ Done | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
+| 6 — CI/CD Integration | ✅ Done | GitHub Actions reusable action and `aigov-check` CLI |
+| 7 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
+| 8 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
+| 9 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
 
 ---
 
 ## Contributing
 
-Contributions welcome — especially new scanners (JavaScript/TypeScript imports, Terraform AI resources, Docker image scanning) and framework classification rules. Open an issue to discuss before submitting a large PR.
+Contributions are welcome — especially new scanners, classification rules, and framework mappings. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+---
+
+## Governance
+
+This project is maintained by [Abhay Kshirsagar](https://github.com/abhaykshir). See [GOVERNANCE.md](GOVERNANCE.md) for the decision process and regulatory accuracy policy.
 
 ---
 
