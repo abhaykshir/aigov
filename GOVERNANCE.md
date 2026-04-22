@@ -2,7 +2,7 @@
 
 ## Current maintainer
 
-**Abhay Kshirsagar** ([@abhaykshir](https://github.com/abhaykshir)) — project creator and maintainer.
+**Abhay K** ([@abhaykshir](https://github.com/abhaykshir)) — project creator and maintainer.
 
 ## Decision process
 
