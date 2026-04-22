@@ -5,13 +5,16 @@ import sys
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 from rich.console import Console
 from rich.table import Table
 
 from aigov.core.engine import ScanResult
 from aigov.core.models import AISystemRecord, RiskLevel
+
+if TYPE_CHECKING:
+    from aigov.core.gaps import GapReport
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +331,187 @@ def _print_summary_line(result: ScanResult, console: Console) -> None:
     )
     if result.warnings:
         console.print(f"[yellow]{len(result.warnings)} warning(s) — run with --output json for details[/yellow]")
+
+
+# ---------------------------------------------------------------------------
+# Gap report — Rich terminal output
+# ---------------------------------------------------------------------------
+
+_GAP_STATUS_COLORS = {
+    "missing": "bold red",
+    "partial": "yellow",
+    "unknown": "dim cyan",
+}
+
+_PRIORITY_COLORS = {
+    "critical": "bold red",
+    "high": "dark_orange",
+    "medium": "yellow",
+    "low": "green",
+}
+
+
+def print_gap_report(gap_report: GapReport, console: Console | None = None) -> None:
+    from aigov.core.gaps import _PRIORITY_ORDER
+
+    if console is None:
+        console = Console()
+
+    summary = gap_report.overall_summary
+    days = summary.get("days_until_deadline", 0)
+    deadline_str = gap_report.deadline.strftime("%B %-d, %Y") if sys.platform != "win32" else gap_report.deadline.strftime("%B %d, %Y").replace(" 0", " ")
+    deadline_color = "bold red" if days < 60 else ("dark_orange" if days < 120 else "yellow")
+
+    console.print()
+    console.rule("[bold]EU AI Act Compliance Gap Analysis[/bold]")
+    console.print(
+        f"\n  Deadline: [{deadline_color}]{deadline_str}[/{deadline_color}] — "
+        f"[{deadline_color}]{days} days remaining[/{deadline_color}]"
+    )
+    console.print(
+        f"  Systems analysed: [bold]{summary['total_systems']}[/bold]  |  "
+        f"Total gaps: [bold]{summary['total_gaps']}[/bold]  |  "
+        f"Estimated effort: [bold]{summary['estimated_effort_min_hours']}–"
+        f"{summary['estimated_effort_max_hours']} hours[/bold]\n"
+    )
+
+    # Sort systems: critical first, then by name
+    ordered = sorted(
+        gap_report.systems,
+        key=lambda s: (_PRIORITY_ORDER.get(s.priority, 99), s.record.name),
+    )
+
+    for analysis in ordered:
+        rec = analysis.record
+        pcolor = _PRIORITY_COLORS.get(analysis.priority, "dim")
+        risk_label = (rec.risk_classification.value.upper().replace("_", " ") if rec.risk_classification else "UNKNOWN")
+        console.print(
+            f"[bold]{rec.name}[/bold]  "
+            f"[{pcolor}]{analysis.priority.upper()}[/{pcolor}]  "
+            f"[dim]({risk_label}  |  est. {analysis.estimated_effort_hours}h)[/dim]"
+        )
+
+        if not analysis.gaps:
+            console.print("  [green]No compliance gaps identified.[/green]\n")
+            continue
+
+        table = Table(show_header=True, show_lines=False, box=None, pad_edge=False, padding=(0, 1))
+        table.add_column("Requirement", style="bold", min_width=32)
+        table.add_column("Article", style="dim", width=12, no_wrap=True)
+        table.add_column("Status", width=10, no_wrap=True)
+        table.add_column("Description", min_width=40)
+
+        for gap in analysis.gaps:
+            sc = _GAP_STATUS_COLORS.get(gap.status, "dim")
+            table.add_row(
+                gap.requirement_name,
+                gap.article_reference,
+                f"[{sc}]{gap.status}[/{sc}]",
+                gap.description[:80] + ("…" if len(gap.description) > 80 else ""),
+            )
+
+        console.print(table)
+        console.print()
+
+    # Priority-ordered action list
+    console.rule("[bold]Action List (priority order)[/bold]")
+    seen: set[str] = set()
+    action_num = 1
+    for analysis in ordered:
+        if not analysis.gaps:
+            continue
+        pcolor = _PRIORITY_COLORS.get(analysis.priority, "dim")
+        for gap in analysis.gaps:
+            key = f"{gap.article_reference}:{gap.requirement_name}"
+            if key in seen:
+                continue
+            seen.add(key)
+            console.print(
+                f"\n  [{action_num}] [{pcolor}]{gap.requirement_name}[/{pcolor}] "
+                f"[dim]({gap.article_reference})[/dim]"
+            )
+            for step in gap.remediation_steps:
+                console.print(f"      • {step}")
+            action_num += 1
+
+    console.print()
+
+
+# ---------------------------------------------------------------------------
+# Gap report — Markdown output
+# ---------------------------------------------------------------------------
+
+def gap_report_to_markdown(gap_report: GapReport) -> str:
+    from aigov.core.gaps import _PRIORITY_ORDER
+
+    buf = StringIO()
+    w = buf.write
+    summary = gap_report.overall_summary
+
+    w("# EU AI Act Compliance Gap Report\n\n")
+    w(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  \n")
+    w(f"Deadline: **{gap_report.deadline.isoformat()}** ({summary['days_until_deadline']} days remaining)  \n\n")
+
+    w("## Overall Summary\n\n")
+    w(f"| Metric | Value |\n|--------|-------|\n")
+    w(f"| Total systems analysed | {summary['total_systems']} |\n")
+    w(f"| Total compliance gaps | {summary['total_gaps']} |\n")
+    w(f"| Estimated effort | {summary['estimated_effort_min_hours']}–{summary['estimated_effort_max_hours']} hours |\n")
+    w(f"| Days until deadline | {summary['days_until_deadline']} |\n\n")
+
+    if summary.get("systems_by_risk"):
+        w("### Systems by Risk Level\n\n")
+        w("| Risk Level | Count |\n|------------|-------|\n")
+        for lvl, count in sorted(summary["systems_by_risk"].items()):
+            w(f"| {lvl.upper().replace('_', ' ')} | {count} |\n")
+        w("\n")
+
+    ordered = sorted(
+        gap_report.systems,
+        key=lambda s: (_PRIORITY_ORDER.get(s.priority, 99), s.record.name),
+    )
+
+    w("## Per-System Gap Analysis\n\n")
+    for analysis in ordered:
+        rec = analysis.record
+        risk_label = (rec.risk_classification.value.upper().replace("_", " ") if rec.risk_classification else "UNKNOWN")
+        w(f"### {rec.name}\n\n")
+        w(f"- **Risk level:** {risk_label}  \n")
+        w(f"- **Priority:** {analysis.priority.upper()}  \n")
+        w(f"- **Estimated effort:** {analysis.estimated_effort_hours} hours  \n")
+        w(f"- **Location:** `{rec.source_location}`  \n\n")
+
+        if not analysis.gaps:
+            w("_No compliance gaps identified._\n\n")
+            continue
+
+        w("| Requirement | Article | Status | Description |\n")
+        w("|-------------|---------|--------|-------------|\n")
+        for gap in analysis.gaps:
+            desc = gap.description.replace("|", "\\|")[:100] + ("…" if len(gap.description) > 100 else "")
+            w(f"| {gap.requirement_name} | {gap.article_reference} | {gap.status} | {desc} |\n")
+        w("\n")
+
+    w("## Remediation Action List\n\n")
+    seen: set[str] = set()
+    action_num = 1
+    for analysis in ordered:
+        if not analysis.gaps:
+            continue
+        for gap in analysis.gaps:
+            key = f"{gap.article_reference}:{gap.requirement_name}"
+            if key in seen:
+                continue
+            seen.add(key)
+            w(f"### {action_num}. {gap.requirement_name} ({gap.article_reference})\n\n")
+            w(f"**Priority:** {analysis.priority.upper()}  \n")
+            w(f"**Status:** {gap.status}  \n\n")
+            for step in gap.remediation_steps:
+                w(f"- {step}\n")
+            w("\n")
+            action_num += 1
+
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
