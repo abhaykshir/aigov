@@ -10,10 +10,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from aigov.cli.hooks import app as _hooks_app
 from aigov.cli.baseline import app as _baseline_app
+from aigov.cli.export import export_command
 
 app = typer.Typer(help="AI Governance-as-Code CLI — discover, classify, and govern AI systems.")
 app.add_typer(_hooks_app, name="hooks")
 app.add_typer(_baseline_app, name="baseline")
+app.command("export")(export_command)
 console = Console()
 
 _VERSION = "aigov 0.2.0"
@@ -41,7 +43,7 @@ def scan(
     ),
     output: str = typer.Option(
         "table", "--output", "-f",
-        help="Output format: table (default), json, markdown.",
+        help="Output format: table (default), json, markdown, csv.",
     ),
     out_file: Optional[str] = typer.Option(
         None, "--out-file", "-o",
@@ -124,6 +126,15 @@ def scan(
         if out_file:
             write_output(content, out_file)
             console.print(f"[green]Markdown report written to {out_file}[/green]")
+        else:
+            write_output(content, None)
+
+    elif output == "csv":
+        from aigov.core.exporter import to_csv
+        content = to_csv(result.records)
+        if out_file:
+            write_output(content, out_file)
+            console.print(f"[green]CSV report written to {out_file}[/green]")
         else:
             write_output(content, None)
 
