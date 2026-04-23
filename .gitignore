@@ -20,3 +20,4 @@ wheels/
 # Demo output
 demo/
 demo-compliance-docs/
+.claude/
