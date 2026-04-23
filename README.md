@@ -51,11 +51,19 @@ Example output:
 Found 6 AI systems · 1 high-risk · 3 limited-risk · 2 minimal-risk
 ```
 
-Export to JSON or Markdown for compliance evidence:
+Export to JSON, Markdown, or CSV for compliance evidence and GRC platform import:
 
 ```bash
 aigov scan . --output json --out-file inventory.json
 aigov scan . --output markdown --out-file AIINVENTORY.md
+aigov scan . --classify --output csv --out-file inventory.csv
+```
+
+Export a saved scan result directly to CSV or flat JSON for Excel, CISO Assistant, ServiceNow, or any GRC tool:
+
+```bash
+aigov export inventory.json --format csv --out-file inventory.csv
+aigov export inventory.json --format json --out-file inventory-flat.json
 ```
 
 ---
@@ -152,6 +160,54 @@ aigov baseline diff --fail-on-drift
 
 ---
 
+## Custom Rules
+
+Layer your organisation's own governance policies on top of EU AI Act classification. Create `.aigov-rules.yaml` in your repo root — aigov auto-discovers it on every `scan` or `classify` run.
+
+```yaml
+# .aigov-rules.yaml
+custom_rules:
+  - name: "Block restricted jurisdictions"
+    description: "Company policy prohibits AI from certain jurisdictions"
+    match:
+      jurisdiction: ["CN", "RU"]
+    action:
+      risk_level: prohibited
+      reason: "Company policy restricts AI from this jurisdiction"
+
+  - name: "Flag patient data AI"
+    description: "AI processing patient data requires HIPAA review"
+    match:
+      keywords: ["patient", "diagnosis", "clinical", "health record"]
+    action:
+      risk_level: high_risk
+      reason: "HIPAA review required per internal policy AI-2026-001"
+
+  - name: "Register LLM usage"
+    description: "All LLM API services need governance board approval"
+    match:
+      providers: ["OpenAI", "Anthropic", "Google", "Mistral"]
+    action:
+      risk_level: limited_risk
+      reason: "LLM usage requires governance board registration"
+```
+
+Three match types can be combined (AND logic across types, OR within each list):
+
+| Match type | Field checked |
+|------------|--------------|
+| `keywords` | Record name, description, and source location (case-insensitive) |
+| `jurisdiction` | `origin_jurisdiction` tag (ISO 3166-1 country code) |
+| `providers` | Provider name (case-insensitive) |
+
+Custom rules **only escalate** — they never downgrade a regulatory classification already set by the EU AI Act classifier. Use `--rules` to specify a non-default path:
+
+```bash
+aigov scan . --classify --rules ./policies/ai-rules.yaml
+```
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -193,9 +249,10 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 | 5 — Cloud Scanners | ✅ Done | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
 | 6 — CI/CD Integration | ✅ Done | GitHub Actions reusable action and `aigov-check` CLI |
 | 7 — Continuous Monitoring | ✅ Done | Git hooks, allowlist, and baseline drift detection |
-| 8 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
-| 9 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
-| 10 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
+| 8 — Custom Rules & GRC Export | ✅ Done | Org-specific rules engine; CSV/JSON export for GRC platforms |
+| 9 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
+| 10 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
+| 11 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
 
 ---
 

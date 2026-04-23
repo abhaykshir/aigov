@@ -18,7 +18,7 @@ app.add_typer(_baseline_app, name="baseline")
 app.command("export")(export_command)
 console = Console()
 
-_VERSION = "aigov 0.2.0"
+_VERSION = "aigov 0.2.1"
 
 
 def version_callback(value: bool) -> None:
