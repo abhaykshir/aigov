@@ -104,6 +104,54 @@ The action fails the step on any finding at or above the configured risk level. 
 
 ---
 
+## Continuous Monitoring
+
+aigov ships three tools for ongoing AI governance — not just one-shot scans.
+
+**Git hooks** — block commits that introduce prohibited AI systems:
+
+```bash
+aigov hooks install
+# pre-commit hook now runs aigov scan --classify on every commit
+# PROHIBITED systems block the commit; HIGH_RISK systems warn
+```
+
+Approve known systems so they don't trigger warnings:
+
+```yaml
+# .aigov-allowlist.yaml
+approved:
+  - id: "abc123def456"
+    reason: "Approved by AI governance board 2026-01-15"
+  - name_pattern: "internal-chatbot-*"
+    reason: "Internal tools approved under policy AI-2026-003"
+```
+
+**Drift detection** — detect new AI systems since your last approved baseline:
+
+```bash
+# Save current state as the approved baseline
+aigov baseline save
+
+# In CI: compare against baseline and fail if new HIGH_RISK or PROHIBITED systems appear
+aigov baseline diff --fail-on-drift
+```
+
+**Example CI workflow** combining all three:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: abhaykshir/aigov@v1
+  with:
+    scan-paths: "."
+    classify: "true"
+    fail-on: "prohibited,high_risk"
+- name: Drift check
+  run: aigov baseline diff --fail-on-drift --baseline .aigov-baseline.json
+```
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -144,9 +192,10 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 | 4 — Documentation Generator | ✅ Done | Draft conformity declarations and DPIA stubs |
 | 5 — Cloud Scanners | ✅ Done | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
 | 6 — CI/CD Integration | ✅ Done | GitHub Actions reusable action and `aigov-check` CLI |
-| 7 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
-| 8 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
-| 9 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
+| 7 — Continuous Monitoring | ✅ Done | Git hooks, allowlist, and baseline drift detection |
+| 8 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
+| 9 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
+| 10 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
 
 ---
 

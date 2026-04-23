@@ -16,7 +16,7 @@ app.add_typer(_hooks_app, name="hooks")
 app.add_typer(_baseline_app, name="baseline")
 console = Console()
 
-_VERSION = "aigov 0.1.0"
+_VERSION = "aigov 0.2.0"
 
 
 def version_callback(value: bool) -> None:

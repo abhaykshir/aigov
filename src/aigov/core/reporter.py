@@ -74,7 +74,7 @@ def _sorted_breakdown(d: dict[str, int]) -> list[tuple[str, int]]:
 
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
     payload = {
-        "aigov_version": "0.1.0",
+        "aigov_version": "0.2.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "total_found": result.total_found,
