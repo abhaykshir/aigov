@@ -73,8 +73,13 @@ def scan(
         "compliance-docs", "--docs-dir",
         help="Output directory for generated compliance documents (default: compliance-docs).",
     ),
+    rules: Optional[str] = typer.Option(
+        None, "--rules",
+        help="Custom rules file path (default: .aigov-rules.yaml in cwd).",
+    ),
 ) -> None:
     """Discover AI systems in the specified paths."""
+    from pathlib import Path as _Path
     from aigov.core.engine import ScanEngine, classify_results
     from aigov.core.reporter import print_table, print_risk_summary, to_json, to_markdown, write_output
 
@@ -107,8 +112,9 @@ def scan(
 
     if do_classify:
         fw_list = [f.strip() for f in frameworks.split(",")]
+        rules_path = _Path(rules) if rules else None
         try:
-            result = classify_results(result, fw_list)
+            result = classify_results(result, fw_list, rules_path=rules_path)
         except ValueError as exc:
             console.print(f"[red]Classification error:[/red] {exc}")
             raise typer.Exit(code=1)
@@ -196,6 +202,10 @@ def classify(
         None, "--scanners",
         help="Comma-separated scanner names when scanning paths (default: all).",
     ),
+    rules: Optional[str] = typer.Option(
+        None, "--rules",
+        help="Custom rules file path (default: .aigov-rules.yaml in cwd).",
+    ),
 ) -> None:
     """Classify AI systems against governance frameworks.
 
@@ -203,12 +213,14 @@ def classify(
     (aigov classify results.json) or one or more paths to scan first
     (aigov classify ./src).
     """
+    from pathlib import Path as _Path
     from aigov.core.engine import ScanEngine, ScanResult, classify_results
     from aigov.core.models import AISystemRecord
     from aigov.core.reporter import print_table, print_risk_summary, to_json, to_markdown, write_output
 
     targets = paths or ["."]
     fw_list = [f.strip() for f in frameworks.split(",")]
+    rules_path = _Path(rules) if rules else None
 
     # Detect whether the sole argument is an existing JSON scan file.
     result: ScanResult
@@ -263,7 +275,7 @@ def classify(
 
     # Classify.
     try:
-        result = classify_results(result, fw_list)
+        result = classify_results(result, fw_list, rules_path=rules_path)
     except ValueError as exc:
         console.print(f"[red]Classification error:[/red] {exc}")
         raise typer.Exit(code=1)

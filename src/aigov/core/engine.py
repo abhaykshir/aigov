@@ -4,6 +4,7 @@ import hashlib
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from aigov.core.models import AISystemRecord
@@ -184,11 +185,19 @@ ProgressCallback = Callable[[str, str], None]
 SUPPORTED_FRAMEWORKS: frozenset[str] = frozenset({"eu_ai_act"})
 
 
-def classify_results(scan_result: ScanResult, frameworks: list[str]) -> ScanResult:
+def classify_results(
+    scan_result: ScanResult,
+    frameworks: list[str],
+    rules_path: Path | None = None,
+) -> ScanResult:
     """Return a new ScanResult with risk_classification populated on every record.
 
-    Only read-only metadata from each record is inspected — no file I/O or
-    network calls are made during classification.
+    Processing order: EU AI Act classification → allowlist → custom rules.
+    Only record metadata is inspected — no file I/O on source files or network
+    calls are made during classification.
+
+    *rules_path* overrides the default custom-rules file (.aigov-rules.yaml in
+    cwd).  Pass ``None`` to use auto-discovery (same as the allowlist).
     """
     import dataclasses
 
@@ -211,6 +220,11 @@ def classify_results(scan_result: ScanResult, frameworks: list[str]) -> ScanResu
     from aigov.core.allowlist import Allowlist
     allowlist = Allowlist.load()
     records = allowlist.apply(records)
+
+    # Apply custom rules — auto-discovers .aigov-rules.yaml in cwd; no-op if absent.
+    from aigov.core.custom_rules import CustomRules
+    custom_rules = CustomRules.load(path=rules_path)
+    records = custom_rules.apply(records)
 
     new_result = dataclasses.replace(scan_result, records=records)
     new_result._compute_summaries()
