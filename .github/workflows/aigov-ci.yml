@@ -50,9 +50,13 @@ jobs:
             --output sarif \
             --out-file aigov.sarif
 
+      # Requires Code Scanning to be enabled — available on public repos or
+      # GitHub orgs with Advanced Security. continue-on-error keeps the
+      # workflow green on private repos where the feature is not active.
       - name: Upload SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
         if: always()
+        continue-on-error: true
         with:
           sarif_file: aigov.sarif
 
