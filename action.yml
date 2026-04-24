@@ -3,6 +3,8 @@ description: >
   Scan your repository for AI systems, classify them against the EU AI Act,
   and fail the workflow if any prohibited (or other configured) systems are found.
   Operates entirely on checked-in code — no cloud credentials required.
+  When output-format is set to "sarif", findings are uploaded to the GitHub
+  Security tab automatically (requires security-events: write permission).
 author: aigov
 
 branding:
@@ -39,9 +41,11 @@ inputs:
 
   output-format:
     description: >
-      Format for the saved results file: json or markdown.
-      The risk policy check always reads JSON, so results are always
-      written as JSON. Markdown output support is planned for a future release.
+      Format for the saved results file: json, markdown, or sarif.
+      When set to "sarif", findings are uploaded to the GitHub Security tab
+      using github/codeql-action/upload-sarif. The calling workflow must grant
+      permissions: security-events: write for the upload to succeed.
+      The risk policy check always reads JSON internally.
     default: "json"
     required: false
 
@@ -58,6 +62,10 @@ outputs:
   total-found:
     description: Total number of AI systems discovered.
     value: ${{ steps.scan.outputs.total-found }}
+
+  sarif-file:
+    description: Path to the SARIF results file (only set when output-format is "sarif").
+    value: ${{ steps.export-sarif.outputs.sarif-file }}
 
 runs:
   using: composite
@@ -104,6 +112,23 @@ runs:
         PYEOF
         )
         echo "total-found=$TOTAL" >> "$GITHUB_OUTPUT"
+
+    - name: Export SARIF report
+      id: export-sarif
+      if: inputs.output-format == 'sarif'
+      shell: bash
+      env:
+        OUTPUT_FILE: ${{ inputs.output-file }}
+      run: |
+        SARIF_FILE="${OUTPUT_FILE%.json}.sarif"
+        aigov export "$OUTPUT_FILE" --format sarif --out-file "$SARIF_FILE"
+        echo "sarif-file=$SARIF_FILE" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to GitHub Security tab
+      if: inputs.output-format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.export-sarif.outputs.sarif-file }}
 
     - name: Evaluate risk policy
       shell: bash

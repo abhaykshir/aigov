@@ -13,7 +13,7 @@ from aigov.core.reporter import write_output
 app = typer.Typer(help="Export scan results for GRC platform integration.")
 console = Console()
 
-_VALID_FORMATS = {"csv", "json"}
+_VALID_FORMATS = {"csv", "json", "sarif"}
 
 
 def export_command(
@@ -25,7 +25,7 @@ def export_command(
         "csv",
         "--format",
         "-f",
-        help="Export format: csv (default) or json.",
+        help="Export format: csv (default), json, or sarif.",
     ),
     out_file: Optional[str] = typer.Option(
         None,
@@ -69,7 +69,13 @@ def export_command(
         console.print("[yellow]No records found in the input file.[/yellow]")
         raise typer.Exit(code=0)
 
-    content = to_csv(records) if fmt == "csv" else to_flat_json(records)
+    if fmt == "csv":
+        content = to_csv(records)
+    elif fmt == "sarif":
+        from aigov.core.sarif import records_to_sarif
+        content = records_to_sarif(records)
+    else:
+        content = to_flat_json(records)
 
     if out_file:
         write_output(content, out_file)

@@ -12,6 +12,9 @@ jobs:
   governance-scan:
     name: AI Governance Scan
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -39,6 +42,19 @@ jobs:
           name: aigov-results
           path: aigov-results.json
           if-no-files-found: warn
+
+      - name: Generate SARIF report
+        run: |
+          aigov scan . \
+            --classify \
+            --output sarif \
+            --out-file aigov.sarif
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: aigov.sarif
 
   # --------------------------------------------------------------------------
   # Job 2: Run the full test suite

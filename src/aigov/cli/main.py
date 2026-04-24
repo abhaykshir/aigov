@@ -43,7 +43,7 @@ def scan(
     ),
     output: str = typer.Option(
         "table", "--output", "-f",
-        help="Output format: table (default), json, markdown, csv.",
+        help="Output format: table (default), json, markdown, csv, sarif.",
     ),
     out_file: Optional[str] = typer.Option(
         None, "--out-file", "-o",
@@ -141,6 +141,15 @@ def scan(
         if out_file:
             write_output(content, out_file)
             console.print(f"[green]CSV report written to {out_file}[/green]")
+        else:
+            write_output(content, None)
+
+    elif output == "sarif":
+        from aigov.core.sarif import to_sarif
+        content = to_sarif(result)
+        if out_file:
+            write_output(content, out_file)
+            console.print(f"[green]SARIF report written to {out_file}[/green]")
         else:
             write_output(content, None)
 
