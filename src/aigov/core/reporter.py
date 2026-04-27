@@ -82,33 +82,12 @@ def _sorted_breakdown(d: dict[str, int]) -> list[tuple[str, int]]:
 # ---------------------------------------------------------------------------
 
 def _has_risk_scores(result: ScanResult) -> bool:
-    return any("risk_score" in r.tags for r in result.records)
+    return any(r.risk_score is not None for r in result.records)
 
 
 def _finding_dict(record: AISystemRecord) -> dict:
-    """Serialize a record, lifting risk_* tags into a dedicated top-level field.
-
-    The risk subsystem stores its output inside ``tags`` (which is str→str) so
-    that records remain JSON-safe. For the API, callers want structured fields
-    rather than parsing strings, so we extract and type the values here.
-    """
-    d = record.to_dict()
-    if "risk_score" in record.tags:
-        drivers_raw = record.tags.get("risk_drivers", "")
-        drivers = [s for s in drivers_raw.split(",") if s] if drivers_raw else []
-        try:
-            score = int(record.tags["risk_score"])
-        except (TypeError, ValueError):
-            score = 0
-        try:
-            confidence = float(record.tags.get("risk_confidence", "0"))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        d["risk_score"] = score
-        d["risk_level"] = record.tags.get("risk_level", "")
-        d["risk_drivers"] = drivers
-        d["risk_confidence"] = confidence
-    return d
+    """Serialize a record. Risk fields are already first-class on the record."""
+    return record.to_dict()
 
 
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
@@ -208,12 +187,12 @@ def to_markdown(result: ScanResult) -> str:
         w("| # | Name | Score | Level | Drivers | Confidence |\n")
         w("|---|------|-------|-------|---------|------------|\n")
         for i, rec in enumerate(result.records, start=1):
-            if "risk_score" not in rec.tags:
+            if rec.risk_score is None:
                 continue
-            score = rec.tags.get("risk_score", "")
-            level = rec.tags.get("risk_level", "")
-            drivers = rec.tags.get("risk_drivers", "")
-            conf = rec.tags.get("risk_confidence", "")
+            score = rec.risk_score
+            level = rec.risk_level or ""
+            drivers = ",".join(rec.risk_drivers or [])
+            conf = f"{rec.risk_confidence:.2f}" if rec.risk_confidence is not None else ""
             w(f"| {i} | {rec.name} | {score} | {level} | {drivers} | {conf} |\n")
         w("\n")
 
@@ -261,13 +240,9 @@ def to_markdown(result: ScanResult) -> str:
 
 def _risk_score_cell(rec: AISystemRecord) -> str:
     """Color-code the risk score per the bands in scoring._LEVEL_BANDS."""
-    raw = rec.tags.get("risk_score")
-    if raw is None:
+    if rec.risk_score is None:
         return ""
-    try:
-        score = int(raw)
-    except (TypeError, ValueError):
-        return raw
+    score = rec.risk_score
     if score >= 80:
         color = "bold red"
     elif score >= 60:
@@ -280,9 +255,9 @@ def _risk_score_cell(rec: AISystemRecord) -> str:
 
 
 def _drivers_cell(rec: AISystemRecord, max_len: int = 38) -> str:
-    drivers = rec.tags.get("risk_drivers", "")
-    if not drivers:
+    if not rec.risk_drivers:
         return ""
+    drivers = ",".join(rec.risk_drivers)
     if len(drivers) > max_len:
         return drivers[: max_len - 1] + "…"
     return drivers

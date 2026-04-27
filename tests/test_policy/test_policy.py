@@ -37,10 +37,8 @@ def _record(
     allowlisted: bool = False,
 ) -> AISystemRecord:
     tags: dict[str, str] = {"origin_jurisdiction": jurisdiction}
-    if risk_score is not None:
-        tags["risk_score"] = str(risk_score)
-    if risk_level is not None:
-        tags["risk_level"] = risk_level
+    # Context fields still live in the JSON-encoded ``risk_context`` tag —
+    # the policy engine reads them through that path.
     ctx: dict = {}
     if exposure is not None:
         ctx["exposure"] = exposure
@@ -69,6 +67,8 @@ def _record(
         deployment_type=DeploymentType.CLOUD_API,
         risk_classification=classification,
         tags=tags,
+        risk_score=risk_score,
+        risk_level=risk_level,
     )
 
 

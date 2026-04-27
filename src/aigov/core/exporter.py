@@ -21,6 +21,8 @@ GRC_FIELDS = [
     "classification_rationale",
     "origin_jurisdiction",
     "confidence",
+    "risk_score",
+    "risk_level",
     "discovery_timestamp",
 ]
 
@@ -40,6 +42,8 @@ def record_to_grc_row(record: AISystemRecord) -> dict[str, str]:
         "classification_rationale": record.classification_rationale or "",
         "origin_jurisdiction": record.tags.get("origin_jurisdiction", ""),
         "confidence": f"{record.confidence:.2f}",
+        "risk_score": str(record.risk_score) if record.risk_score is not None else "",
+        "risk_level": record.risk_level or "",
         "discovery_timestamp": record.discovery_timestamp.isoformat(),
     }
 

@@ -58,8 +58,8 @@ class TestFullPipeline:
         scored = apply_risk([rec], [str(tmp_path)])
         assert len(scored) == 1
         out = scored[0]
-        assert out.tags["risk_level"] == "critical"
-        assert int(out.tags["risk_score"]) >= 80
+        assert out.risk_level == "critical"
+        assert out.risk_score >= 80
 
     def test_dev_internal_no_sensitive_is_low_or_medium(self, tmp_path):
         dev_dir = tmp_path / "dev"
@@ -71,7 +71,7 @@ class TestFullPipeline:
         scored = apply_risk([rec], [str(tmp_path)])
         out = scored[0]
         # base 10 + dev 0 + unknown exposure +5 + unknown interaction +3 = 18 → low
-        assert out.tags["risk_level"] == "low"
+        assert out.risk_level == "low"
 
     def test_batch_offline_is_lower_risk_than_realtime(self, tmp_path):
         prod_dir = tmp_path / "production"
@@ -82,7 +82,7 @@ class TestFullPipeline:
         scored = apply_risk([rec], [str(tmp_path)])
         # base 75 + production 15 + batch 0 + no sensitive 0 + batch_interaction 0 = 90
         # That's still critical — but lower than the public_api+pii case which clamps to 100.
-        assert int(scored[0].tags["risk_score"]) <= 100
+        assert scored[0].risk_score <= 100
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ class TestImmutability:
         apply_risk([rec], [str(tmp_path)])
 
         assert rec.tags == original_tags
-        assert "risk_score" not in rec.tags
+        assert rec.risk_score is None
 
     def test_output_is_a_new_list_of_new_records(self, tmp_path):
         target = tmp_path / "lib.py"
@@ -111,23 +111,24 @@ class TestImmutability:
 
 
 # ---------------------------------------------------------------------------
-# Tag contents
+# Risk fields are populated as first-class attributes
 # ---------------------------------------------------------------------------
 
-class TestTagContents:
-    def test_all_risk_tags_present(self, tmp_path):
+class TestRiskFields:
+    def test_all_risk_fields_populated(self, tmp_path):
         target = tmp_path / "lib.py"
         target.write_text("def x(): pass\n", encoding="utf-8")
         rec = _record(str(target))
         scored = apply_risk([rec], [str(tmp_path)])
-        out_tags = scored[0].tags
-        assert "risk_score" in out_tags
-        assert "risk_level" in out_tags
-        assert "risk_drivers" in out_tags
-        assert "risk_confidence" in out_tags
-        assert "risk_context" in out_tags
+        out = scored[0]
+        assert isinstance(out.risk_score, int)
+        assert isinstance(out.risk_level, str)
+        assert isinstance(out.risk_drivers, list)
+        assert isinstance(out.risk_confidence, float)
+        # Context still lives in tags as JSON for transparency / debugging.
+        assert "risk_context" in out.tags
 
-    def test_risk_context_is_valid_json(self, tmp_path):
+    def test_risk_context_tag_is_valid_json(self, tmp_path):
         target = tmp_path / "lib.py"
         target.write_text("def x(): pass\n", encoding="utf-8")
         rec = _record(str(target))
@@ -148,4 +149,4 @@ class TestTagContents:
         )
         scored = apply_risk([rec_with_tag], [str(tmp_path)])
         assert scored[0].tags["origin_jurisdiction"] == "US"
-        assert "risk_score" in scored[0].tags
+        assert scored[0].risk_score is not None

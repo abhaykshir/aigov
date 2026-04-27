@@ -181,6 +181,10 @@ def _record_to_sarif_result(record: AISystemRecord) -> dict:
     eu_cat = record.tags.get("eu_ai_act_category", "")
     if eu_cat:
         properties["eu_ai_act_category"] = eu_cat
+    if record.risk_score is not None:
+        properties["risk_score"] = record.risk_score
+    if record.risk_level is not None:
+        properties["risk_level"] = record.risk_level
 
     return {
         "ruleId": rule_id,

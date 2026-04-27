@@ -168,8 +168,8 @@ def explain(record: AISystemRecord) -> Explanation:
     """
     drivers = _drivers(record)
     classification = record.risk_classification or RiskLevel.UNKNOWN
-    risk_level = record.tags.get("risk_level", "")
-    risk_score = _int(record.tags.get("risk_score"))
+    risk_level = record.risk_level or ""
+    risk_score = record.risk_score if record.risk_score is not None else 0
     context = _context(record)
 
     # PROHIBITED short-circuits everything: there's only one correct action.
@@ -228,8 +228,9 @@ def explain(record: AISystemRecord) -> Explanation:
 # ---------------------------------------------------------------------------
 
 def _drivers(record: AISystemRecord) -> list[str]:
-    raw = record.tags.get("risk_drivers", "")
-    return [d.strip() for d in raw.split(",") if d.strip()]
+    if record.risk_drivers:
+        return list(record.risk_drivers)
+    return []
 
 
 def _context(record: AISystemRecord) -> dict[str, Any]:

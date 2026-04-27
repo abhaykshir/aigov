@@ -3,6 +3,13 @@
 Exit 0  — no findings match any configured failure rule (clean).
 Exit 1  — one or more findings match; prints which ones and which rule fired.
 Exit 2  — usage or I/O error (bad args, missing file, invalid JSON).
+
+The CLI flags (``--fail-on``, ``--fail-on-risk-score``, ``--fail-on-exposure``,
+``--fail-on-data``) and the optional ``--policy`` YAML file are *all* converted
+into :class:`aigov.core.policy.Policy` objects and evaluated through the same
+``evaluate_policies_against`` engine. There is no second filtering code path —
+adding a new flag means appending a new ``Policy`` to the list, not writing
+new comparison logic.
 """
 from __future__ import annotations
 
@@ -11,6 +18,20 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from aigov.core.models import AISystemRecord
+from aigov.core.policy import (
+    Policy,
+    PolicyMatch,
+    PolicyResult,
+    evaluate_policies_against,
+    load_policies,
+)
+
+
+# Synthetic policy names — used so reviewers can tell at a glance which CLI
+# flag (or YAML rule) triggered a given block.
+_FLAG_POLICY_PREFIX = "cli:"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,18 +84,16 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help=(
             "Path to a .aigov-policy.yaml file. Each policy with action=fail "
-            "that matches at least one finding causes a non-zero exit."
+            "that matches at least one finding causes a non-zero exit; "
+            "action=warn prints a notice."
         ),
     )
     args = parser.parse_args(argv)
 
-    fail_levels = {lvl.strip().lower() for lvl in args.fail_on.split(",") if lvl.strip()}
+    fail_levels = _split(args.fail_on)
     if not fail_levels:
         print("Error: --fail-on must contain at least one risk level.", file=sys.stderr)
         return 2
-
-    fail_exposures = _split(args.fail_on_exposure)
-    fail_data = _split(args.fail_on_data)
 
     try:
         raw = json.loads(Path(args.input_file).read_text(encoding="utf-8"))
@@ -86,142 +105,177 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     findings = raw.get("findings", [])
+    records, allowlisted_records = _findings_to_records(findings)
 
-    triggered: list[tuple[dict, list[str]]] = []
-    skipped_allowlisted: list[dict] = []
-
-    for finding in findings:
-        if _is_allowlisted(finding):
-            if _matches_any_rule(finding, fail_levels, args.fail_on_risk_score, fail_exposures, fail_data):
-                skipped_allowlisted.append(finding)
-            continue
-
-        reasons: list[str] = []
-        if (finding.get("risk_classification") or "").lower() in fail_levels:
-            reasons.append(f"risk_classification={finding.get('risk_classification')}")
-        score = _risk_score(finding)
-        if args.fail_on_risk_score is not None and score is not None and score >= args.fail_on_risk_score:
-            reasons.append(f"risk_score={score} (>= {args.fail_on_risk_score})")
-        exposure = _exposure(finding)
-        if fail_exposures and exposure in fail_exposures:
-            reasons.append(f"exposure={exposure}")
-        sensitivities = _data_sensitivity(finding)
-        if fail_data:
-            hits = [s for s in sensitivities if s in fail_data]
-            if hits:
-                reasons.append(f"data_sensitivity={','.join(hits)}")
-        if reasons:
-            triggered.append((finding, reasons))
-
-    # ── Allowlist suppressions: always surface for auditability ─────────────
-    if skipped_allowlisted:
-        print(f"Suppressed (allowlisted): {len(skipped_allowlisted)} finding(s)")
-        for finding in skipped_allowlisted:
-            name = finding.get("name") or finding.get("id") or "unknown"
-            reason = (finding.get("tags") or {}).get("allowlist_reason") or "no reason recorded"
-            print(f"  Suppressed (allowlisted): {name} — {reason}")
-
-    # ── Policy file evaluation ──────────────────────────────────────────────
-    policy_failures, policy_warnings = _evaluate_policy_file(
-        args.policy, findings, suppress_allowlisted=True
+    policies = _build_flag_policies(
+        fail_levels,
+        args.fail_on_risk_score,
+        _split(args.fail_on_exposure),
+        _split(args.fail_on_data),
     )
+    if args.policy:
+        policies.extend(load_policies(Path(args.policy)))
 
-    if policy_warnings:
-        print(f"\nPolicy warnings: {len(policy_warnings)} match(es)")
-        for name, finding, desc in policy_warnings:
-            target = finding.get("name") or finding.get("id") or "unknown"
-            print(f"  WARN [{name}] {target} — {desc}")
+    result = evaluate_policies_against(records, policies)
 
-    # ── Final outcome ───────────────────────────────────────────────────────
-    if not triggered and not policy_failures:
-        rules = _summary_rules(args.fail_on, args.fail_on_risk_score, fail_exposures, fail_data)
+    # Allowlisted records that *would* have matched something — surface them
+    # so the bypass is auditable.
+    suppressed = _suppressed_allowlisted(allowlisted_records, policies)
+    if suppressed:
+        print(f"Suppressed (allowlisted): {len(suppressed)} finding(s)")
+        for record, reason in suppressed:
+            print(f"  Suppressed (allowlisted): {record.name} — {reason}")
+
+    if result.warnings:
+        print(f"\nPolicy warnings: {len(result.warnings)} match(es)")
+        for match in result.warnings:
+            _print_match_line("WARN", match)
+
+    if not result.failures:
+        rules = _summary_rules(args.fail_on, args.fail_on_risk_score,
+                               _split(args.fail_on_exposure), _split(args.fail_on_data))
         print(f"\naigov check: PASSED — no findings matched: {rules}")
         return 0
 
-    print(f"\naigov check: FAILED — {len(triggered) + len(policy_failures)} finding(s) blocked")
-    for finding, reasons in triggered:
-        name = finding.get("name") or finding.get("id") or "unknown"
-        loc = finding.get("source_location", "")
-        print(f"  [{', '.join(reasons)}] {name}  ({loc})")
-    for name, finding, desc in policy_failures:
-        target = finding.get("name") or finding.get("id") or "unknown"
-        loc = finding.get("source_location", "")
-        print(f"  POLICY [{name}] {target}  ({loc}) — {desc}")
+    print(f"\naigov check: FAILED — {len(result.failures)} finding(s) blocked")
+    for match in result.failures:
+        _print_match_line("FAIL", match)
     return 1
 
 
 # ---------------------------------------------------------------------------
-# Field extraction helpers (work on dicts loaded from the JSON output)
+# CLI flags → Policy objects
 # ---------------------------------------------------------------------------
+
+def _build_flag_policies(
+    fail_levels: set[str],
+    fail_score: int | None,
+    fail_exposures: set[str],
+    fail_data: set[str],
+) -> list[Policy]:
+    """Translate the CLI flags into Policy objects so they share one engine."""
+    policies: list[Policy] = []
+
+    for level in sorted(fail_levels):
+        policies.append(Policy(
+            name=f"{_FLAG_POLICY_PREFIX}fail-on={level}",
+            description=f"--fail-on {level}",
+            condition={"risk_level": level},
+            action="fail",
+        ))
+
+    if fail_score is not None:
+        policies.append(Policy(
+            name=f"{_FLAG_POLICY_PREFIX}fail-on-risk-score>={fail_score}",
+            description=f"--fail-on-risk-score {fail_score}",
+            condition={"risk_score": f">={fail_score}"},
+            action="fail",
+        ))
+
+    if fail_exposures:
+        policies.append(Policy(
+            name=f"{_FLAG_POLICY_PREFIX}fail-on-exposure={','.join(sorted(fail_exposures))}",
+            description=f"--fail-on-exposure {','.join(sorted(fail_exposures))}",
+            condition={"exposure": sorted(fail_exposures)},
+            action="fail",
+        ))
+
+    if fail_data:
+        policies.append(Policy(
+            name=f"{_FLAG_POLICY_PREFIX}fail-on-data={','.join(sorted(fail_data))}",
+            description=f"--fail-on-data {','.join(sorted(fail_data))}",
+            condition={"data_sensitivity": sorted(fail_data)},
+            action="fail",
+        ))
+
+    return policies
+
+
+# ---------------------------------------------------------------------------
+# JSON findings → AISystemRecord (so the policy engine can evaluate them)
+# ---------------------------------------------------------------------------
+
+def _findings_to_records(findings: list[dict]) -> tuple[list[AISystemRecord], list[AISystemRecord]]:
+    """Reconstruct AISystemRecord objects from JSON dicts.
+
+    Returns ``(non_allowlisted, allowlisted)``. The policy engine itself skips
+    allowlisted records, but we keep them around so we can report on them.
+
+    Records that are too malformed to round-trip (missing required fields,
+    invalid timestamps, …) are silently dropped. The risk fields, when
+    present at the top level of the dict, are picked up by
+    ``AISystemRecord.from_dict``.
+    """
+    non_allowlisted: list[AISystemRecord] = []
+    allowlisted: list[AISystemRecord] = []
+    for finding in findings:
+        finding = _normalize_finding(finding)
+        try:
+            record = AISystemRecord.from_dict(finding)
+        except (KeyError, ValueError, TypeError):
+            continue
+        if (record.tags or {}).get("allowlisted", "").strip().lower() == "true":
+            allowlisted.append(record)
+        else:
+            non_allowlisted.append(record)
+    return non_allowlisted, allowlisted
+
+
+def _normalize_finding(finding: dict) -> dict:
+    """Tolerate legacy / human-edited scan outputs where enum values are
+    capitalised. ``RiskLevel("PROHIBITED")`` would otherwise raise."""
+    rc = finding.get("risk_classification")
+    if isinstance(rc, str):
+        normalized = rc.lower()
+        if normalized != rc:
+            return {**finding, "risk_classification": normalized}
+    return finding
+
+
+# ---------------------------------------------------------------------------
+# Reporting helpers
+# ---------------------------------------------------------------------------
+
+def _print_match_line(prefix: str, match: PolicyMatch) -> None:
+    desc = match.policy.description or match.policy.name
+    print(f"  {prefix} [{match.policy.name}] {match.record.name} ({match.record.source_location}) — {desc}")
+
+
+def _suppressed_allowlisted(
+    allowlisted: list[AISystemRecord],
+    policies: list[Policy],
+) -> list[tuple[AISystemRecord, str]]:
+    """Return (record, reason) for allowlisted records that *would* have matched."""
+    if not (allowlisted and policies):
+        return []
+    # Run the same engine against the allowlisted records, but with the
+    # allowlist tag stripped so the matcher considers them.
+    stripped: list[AISystemRecord] = []
+    for record in allowlisted:
+        new_tags = {k: v for k, v in record.tags.items() if k != "allowlisted"}
+        stripped.append(_replace_tags(record, new_tags))
+
+    result = evaluate_policies_against(stripped, policies)
+    matched_ids = {m.record.id for m in result.failures + result.warnings}
+
+    suppressed: list[tuple[AISystemRecord, str]] = []
+    for record in allowlisted:
+        if record.id not in matched_ids:
+            continue
+        reason = (record.tags or {}).get("allowlist_reason") or "no reason recorded"
+        suppressed.append((record, reason))
+    return suppressed
+
+
+def _replace_tags(record: AISystemRecord, new_tags: dict[str, str]) -> AISystemRecord:
+    import dataclasses
+    return dataclasses.replace(record, tags=new_tags)
+
 
 def _split(raw: str | None) -> set[str]:
     if not raw:
         return set()
     return {s.strip().lower() for s in raw.split(",") if s.strip()}
-
-
-def _is_allowlisted(finding: dict) -> bool:
-    tags = finding.get("tags") or {}
-    flag = tags.get("allowlisted")
-    if isinstance(flag, bool):
-        return flag
-    if isinstance(flag, str):
-        return flag.strip().lower() == "true"
-    return False
-
-
-def _risk_score(finding: dict) -> int | None:
-    if "risk_score" in finding:
-        try:
-            return int(finding["risk_score"])
-        except (TypeError, ValueError):
-            return None
-    raw = (finding.get("tags") or {}).get("risk_score")
-    if raw is None:
-        return None
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _risk_context(finding: dict) -> dict[str, Any]:
-    raw = (finding.get("tags") or {}).get("risk_context")
-    if not raw:
-        return {}
-    try:
-        return json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return {}
-
-
-def _exposure(finding: dict) -> str | None:
-    return _risk_context(finding).get("exposure")
-
-
-def _data_sensitivity(finding: dict) -> list[str]:
-    val = _risk_context(finding).get("data_sensitivity") or []
-    return [str(v).lower() for v in val] if isinstance(val, list) else []
-
-
-def _matches_any_rule(
-    finding: dict,
-    fail_levels: set[str],
-    fail_score: int | None,
-    fail_exposures: set[str],
-    fail_data: set[str],
-) -> bool:
-    if (finding.get("risk_classification") or "").lower() in fail_levels:
-        return True
-    score = _risk_score(finding)
-    if fail_score is not None and score is not None and score >= fail_score:
-        return True
-    exposure = _exposure(finding)
-    if fail_exposures and exposure in fail_exposures:
-        return True
-    if fail_data and any(s in fail_data for s in _data_sensitivity(finding)):
-        return True
-    return False
 
 
 def _summary_rules(
@@ -238,85 +292,6 @@ def _summary_rules(
     if data:
         parts.append(f"data∈{{{','.join(sorted(data))}}}")
     return "; ".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# Policy file evaluation against the dict-shaped findings in the JSON
-# ---------------------------------------------------------------------------
-
-def _evaluate_policy_file(
-    policy_path: str | None,
-    findings: list[dict],
-    *,
-    suppress_allowlisted: bool,
-) -> tuple[list[tuple[str, dict, str]], list[tuple[str, dict, str]]]:
-    """Evaluate a policy YAML against the dict findings.
-
-    We don't reuse :func:`aigov.core.policy.evaluate_policies` here because
-    that function expects ``AISystemRecord`` objects and the JSON dicts may be
-    missing fields the dataclass would refuse (e.g. discovery_timestamp).
-    Instead we re-implement the matcher against dicts using the same shared
-    helpers from the policy module.
-    """
-    if not policy_path:
-        return [], []
-
-    try:
-        from aigov.core.policy import (
-            _match_field,
-            load_policies,
-        )
-    except ImportError:
-        return [], []
-
-    policies = load_policies(Path(policy_path))
-    if not policies:
-        return [], []
-
-    failures: list[tuple[str, dict, str]] = []
-    warnings: list[tuple[str, dict, str]] = []
-
-    for policy in policies:
-        for finding in findings:
-            if suppress_allowlisted and _is_allowlisted(finding):
-                continue
-            if not _finding_matches(policy, finding, _match_field):
-                continue
-            entry = (policy.name, finding, policy.description or "")
-            if policy.action == "fail":
-                failures.append(entry)
-            else:
-                warnings.append(entry)
-
-    return failures, warnings
-
-
-def _finding_matches(policy, finding: dict, match_field) -> bool:
-    """AND-combine the policy's condition fields against a finding dict."""
-    for field_name, expected in policy.condition.items():
-        actual = _finding_field(finding, field_name)
-        if not match_field(field_name, expected, actual):
-            return False
-    return True
-
-
-def _finding_field(finding: dict, field_name: str) -> Any:
-    if field_name == "system_type":
-        return finding.get("system_type")
-    if field_name == "risk_level":
-        return (
-            (finding.get("tags") or {}).get("risk_level")
-            or finding.get("risk_level")
-            or finding.get("risk_classification")
-        )
-    if field_name == "risk_score":
-        return _risk_score(finding)
-    if field_name == "jurisdiction":
-        return (finding.get("tags") or {}).get("origin_jurisdiction")
-    ctx = _risk_context(finding)
-    if field_name in ctx:
-        return ctx[field_name]
-    return None
 
 
 if __name__ == "__main__":

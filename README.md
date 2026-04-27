@@ -96,6 +96,12 @@ All findings include `origin_jurisdiction` (ISO 3166-1) for geography-based poli
 
 ---
 
+## Risk Scoring
+
+`aigov scan --with-risk` produces a deterministic 0–100 risk score per finding, combining the EU AI Act classification with deployment context (environment, exposure, data sensitivity, interaction type). Scores are pattern-matching signals, not legal determinations — see [docs/scoring-model.md](docs/scoring-model.md) for the base scores, modifier tables, banding, confidence calculation, and a worked example.
+
+---
+
 ## CI/CD Integration
 
 Add aigov to your workflow to block deployments if prohibited AI systems are detected:

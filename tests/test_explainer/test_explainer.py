@@ -23,12 +23,8 @@ def _record(
     context: dict | None = None,
 ) -> AISystemRecord:
     tags: dict[str, str] = {}
-    if drivers is not None:
-        tags["risk_drivers"] = ",".join(drivers)
-    if risk_level is not None:
-        tags["risk_level"] = risk_level
-    if risk_score is not None:
-        tags["risk_score"] = str(risk_score)
+    # Context still flows through ``risk_context`` for transparency / debugging;
+    # the explainer reads sensitivity from there to compose its summary.
     if context is not None:
         tags["risk_context"] = json.dumps(context)
 
@@ -45,6 +41,9 @@ def _record(
         deployment_type=DeploymentType.CLOUD_API,
         risk_classification=classification,
         tags=tags,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        risk_drivers=list(drivers) if drivers is not None else None,
     )
 
 

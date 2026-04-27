@@ -18,19 +18,50 @@ def _results_file(tmp_path: Path, findings: list[dict]) -> str:
     return str(p)
 
 
+_FIXTURE_TIMESTAMP = "2026-01-01T00:00:00+00:00"
+
+# Counter so multiple findings in one fixture file get unique ids — the
+# allowlist suppression logic dedupes by record.id when reporting.
+_FIXTURE_ID_COUNTER = {"n": 0}
+
+
+def _next_id() -> str:
+    _FIXTURE_ID_COUNTER["n"] += 1
+    return f"fixture-{_FIXTURE_ID_COUNTER['n']}"
+
+
 def _finding(
     risk: str,
     name: str = "Test System",
     loc: str = "src/app.py:1",
     tags: dict | None = None,
+    record_id: str | None = None,
+    extra: dict | None = None,
 ) -> dict:
-    return {
-        "id": "abc123",
+    """Build a finding dict with every field ``AISystemRecord.from_dict``
+    requires.
+
+    The check_risk CLI now reconstructs records before evaluating them
+    against the policy engine, so the dicts here have to round-trip cleanly
+    through ``from_dict``.
+    """
+    base: dict = {
+        "id": record_id or _next_id(),
         "name": name,
-        "risk_classification": risk,
-        "source_location": loc,
+        "description": "",
+        "source_scanner": "test.scanner",
+        "source_location": loc or "src/app.py:1",
+        "discovery_timestamp": _FIXTURE_TIMESTAMP,
+        "confidence": 0.9,
+        "system_type": "api_service",
+        "provider": "TestProvider",
+        "deployment_type": "cloud_api",
+        "risk_classification": risk if risk else None,
         "tags": tags or {},
     }
+    if extra:
+        base.update(extra)
+    return base
 
 
 def _allowlisted(risk: str, name: str = "Approved System", reason: str = "Approved by board 2026-01-15") -> dict:
@@ -71,7 +102,9 @@ class TestCheckRiskPass:
         assert main([f]) == 0
 
     def test_none_risk_classification_does_not_trigger(self, tmp_path):
-        finding = {"id": "x", "name": "Null Risk", "risk_classification": None, "source_location": ""}
+        # ``risk_classification: null`` round-trips to RiskLevel.UNKNOWN, which
+        # isn't in the default fail set ("prohibited") so this passes.
+        finding = _finding(None, name="Null Risk")
         f = _results_file(tmp_path, [finding])
         assert main([f]) == 0
 
@@ -262,53 +295,43 @@ class TestCheckRiskAllowlist:
         assert main([f, "--fail-on", "high_risk"]) == 1
 
     def test_fail_on_risk_score_triggers(self, tmp_path):
-        finding = {
-            "id": "x",
-            "name": "ScoredHigh",
-            "risk_classification": "minimal_risk",
-            "source_location": "src/x.py:1",
-            "risk_score": 92,
-            "tags": {},
-        }
+        finding = _finding(
+            "minimal_risk", name="ScoredHigh",
+            extra={"risk_score": 92},
+        )
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on-risk-score", "80"]) == 1
 
     def test_fail_on_risk_score_below_threshold_passes(self, tmp_path):
-        finding = {
-            "id": "x", "name": "Mid", "risk_classification": "minimal_risk",
-            "source_location": "", "risk_score": 50, "tags": {},
-        }
+        finding = _finding(
+            "minimal_risk", name="Mid",
+            extra={"risk_score": 50},
+        )
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on-risk-score", "80"]) == 0
 
     def test_fail_on_exposure_triggers(self, tmp_path):
-        finding = {
-            "id": "x", "name": "PublicAPI",
-            "risk_classification": "minimal_risk",
-            "source_location": "src/x.py",
-            "tags": {"risk_context": json.dumps({"exposure": "public_api"})},
-        }
+        finding = _finding(
+            "minimal_risk", name="PublicAPI",
+            tags={"risk_context": json.dumps({"exposure": "public_api"})},
+        )
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on-exposure", "public_api"]) == 1
 
     def test_fail_on_data_pii_triggers(self, tmp_path):
-        finding = {
-            "id": "x", "name": "PIIService",
-            "risk_classification": "minimal_risk",
-            "source_location": "src/x.py",
-            "tags": {"risk_context": json.dumps({"data_sensitivity": ["pii"]})},
-        }
+        finding = _finding(
+            "minimal_risk", name="PIIService",
+            tags={"risk_context": json.dumps({"data_sensitivity": ["pii"]})},
+        )
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on-data", "pii,financial"]) == 1
 
     def test_allowlisted_record_skips_score_threshold(self, tmp_path):
-        finding = {
-            "id": "x", "name": "ApprovedScored",
-            "risk_classification": "minimal_risk",
-            "source_location": "src/x.py",
-            "risk_score": 95,
-            "tags": {"allowlisted": "true", "allowlist_reason": "ok"},
-        }
+        finding = _finding(
+            "minimal_risk", name="ApprovedScored",
+            tags={"allowlisted": "true", "allowlist_reason": "ok"},
+            extra={"risk_score": 95},
+        )
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on-risk-score", "80"]) == 0
 

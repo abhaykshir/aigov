@@ -165,19 +165,17 @@ def _record_field(record: AISystemRecord, field_name: str) -> Any:
     if field_name == "system_type":
         return record.system_type.value
     if field_name == "risk_level":
-        return (
-            record.tags.get("risk_level")
-            or (record.risk_classification.value if record.risk_classification else None)
-        )
+        # First-class field set by the risk engine; fall back to the EU AI Act
+        # classification value when the engine hasn't run.
+        if record.risk_level:
+            return record.risk_level
+        return record.risk_classification.value if record.risk_classification else None
     if field_name == "risk_score":
-        raw = record.tags.get("risk_score")
-        try:
-            return int(raw) if raw is not None else None
-        except (TypeError, ValueError):
-            return None
+        return record.risk_score
     if field_name == "jurisdiction":
         return record.tags.get("origin_jurisdiction")
-    # Context-derived fields
+    # Context-derived fields (environment, exposure, data_sensitivity,
+    # interaction_type) still live in the JSON-encoded ``risk_context`` tag.
     ctx = _record_context(record)
     if field_name in ctx:
         return ctx[field_name]
