@@ -242,16 +242,18 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## Roadmap
 
+> aigov is in active alpha development. Features are functional but evolving. Feedback and contributions welcome.
+
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1 — Discovery | ✅ Done | Python imports, API keys, MCP server scanners |
-| 2 — Risk Classification | ✅ Done | EU AI Act Article 5, Annex III, Article 50 |
-| 3 — Gap Analysis | ✅ Done | Compliance gap analyzer — missing controls per finding |
-| 4 — Documentation Generator | ✅ Done | Draft conformity declarations and DPIA stubs |
-| 5 — Cloud Scanners | ✅ Done | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
-| 6 — CI/CD Integration | ✅ Done | GitHub Actions reusable action and `aigov-check` CLI |
-| 7 — Continuous Monitoring | ✅ Done | Git hooks, allowlist, and baseline drift detection |
-| 8 — Custom Rules & GRC Export | ✅ Done | Org-specific rules engine; CSV/JSON export for GRC platforms |
+| 1 — Discovery | Shipped (alpha) | Python imports, API keys, MCP server scanners |
+| 2 — Risk Classification | Shipped (alpha) | EU AI Act Article 5, Annex III, Article 50 |
+| 3 — Gap Analysis | Shipped (alpha) | Compliance gap analyzer — missing controls per finding |
+| 4 — Documentation Generator | Shipped (alpha) | Draft conformity declarations and DPIA stubs |
+| 5 — Cloud Scanners | Shipped (alpha) | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
+| 6 — CI/CD Integration | Shipped (alpha) | GitHub Actions reusable action and `aigov-check` CLI |
+| 7 — Continuous Monitoring | Shipped (alpha) | Git hooks, allowlist, and baseline drift detection |
+| 8 — Custom Rules & GRC Export | Shipped (alpha) | Org-specific rules engine; CSV/JSON export for GRC platforms |
 | 9 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
 | 10 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
 | 11 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
