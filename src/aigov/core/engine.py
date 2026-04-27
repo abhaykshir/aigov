@@ -79,6 +79,7 @@ class ScanResult:
     records: list[AISystemRecord] = field(default_factory=list)
     scanners_run: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    scanner_errors: list[str] = field(default_factory=list)
     duration_seconds: float = 0.0
     scanned_paths: list[str] = field(default_factory=list)
 
@@ -110,18 +111,27 @@ class ScanEngine:
         self,
         paths: list[str],
         enabled_scanners: list[str] | None = None,
+        local_config: bool = False,
     ) -> None:
         self._paths = paths
+        self._local_config = local_config
         reg = _registry()
+
+        def _instantiate(cls: type[BaseScanner]) -> BaseScanner:
+            from aigov.scanners.config.mcp_servers import McpServersScanner
+            if cls is McpServersScanner:
+                return cls(local_config=local_config)
+            return cls()
+
         if enabled_scanners is None:
             self._scanners: list[BaseScanner] = [
-                cls() for name, cls in reg.items() if name not in _OPT_IN_SCANNERS
+                _instantiate(cls) for name, cls in reg.items() if name not in _OPT_IN_SCANNERS
             ]
         else:
             unknown = [n for n in enabled_scanners if n not in reg]
             if unknown:
                 raise ValueError(f"Unknown scanner(s): {', '.join(unknown)}. Available: {', '.join(reg)}")
-            self._scanners = [reg[n]() for n in enabled_scanners]
+            self._scanners = [_instantiate(reg[n]) for n in enabled_scanners]
 
     @property
     def available_scanner_names(self) -> list[str]:
@@ -146,6 +156,7 @@ class ScanEngine:
             except Exception as exc:  # noqa: BLE001
                 msg = f"Scanner {scanner.name!r} failed: {exc}"
                 result.warnings.append(msg)
+                result.scanner_errors.append(msg)
             if progress_callback:
                 progress_callback(scanner.name, "done")
 

@@ -172,10 +172,6 @@ class TestSourceSlug:
         rec = _make_record(RiskLevel.HIGH_RISK, source_location="src/app.py#10")
         assert _source_slug(rec) == "app"
 
-    def test_falls_back_to_name_when_no_file(self):
-        rec = _make_record(RiskLevel.HIGH_RISK, name="My System", source_location="")
-        assert _source_slug(rec) == "my_system"
-
     def test_falls_back_to_name_for_bare_dot(self):
         rec = _make_record(RiskLevel.HIGH_RISK, name="My System", source_location=".")
         assert _source_slug(rec) == "my_system"
@@ -648,3 +644,29 @@ class TestFileFormat:
         generator.generate([high_risk_record], str(tmp_path))
         content = (tmp_path / "index.md").read_text(encoding="utf-8")
         assert content.startswith("# ")
+
+
+# ---------------------------------------------------------------------------
+# Legal disclaimer present in every generated document
+# ---------------------------------------------------------------------------
+
+class TestDisclaimer:
+    def test_annex_iv_includes_disclaimer(self, generator, high_risk_record, tmp_path):
+        generator.generate([high_risk_record], str(tmp_path))
+        content = (tmp_path / "resume_screener_annex_iv.md").read_text(encoding="utf-8")
+        assert "not legal advice" in content.lower()
+
+    def test_transparency_includes_disclaimer(self, generator, limited_risk_record, tmp_path):
+        generator.generate([limited_risk_record], str(tmp_path))
+        content = (tmp_path / "customer_chatbot_transparency.md").read_text(encoding="utf-8")
+        assert "not legal advice" in content.lower()
+
+    def test_prohibited_includes_disclaimer(self, generator, prohibited_record, tmp_path):
+        generator.generate([prohibited_record], str(tmp_path))
+        content = (tmp_path / "social_scoring_system_prohibited.md").read_text(encoding="utf-8")
+        assert "not legal advice" in content.lower()
+
+    def test_index_includes_disclaimer(self, generator, high_risk_record, tmp_path):
+        generator.generate([high_risk_record], str(tmp_path))
+        content = (tmp_path / "index.md").read_text(encoding="utf-8")
+        assert "not legal advice" in content.lower()

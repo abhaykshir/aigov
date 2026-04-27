@@ -266,3 +266,57 @@ def test_classify_does_not_mutate_shared_state(classifier):
     r1b = _record(name="resume_screener", description="AI resume screening system for candidate scoring", provider="OpenAI")
     result = classifier.classify(r1b)
     assert result.risk_classification == RiskLevel.HIGH_RISK
+
+
+# ---------------------------------------------------------------------------
+# classify() returns a new record — input is never mutated
+# ---------------------------------------------------------------------------
+
+def test_classify_returns_new_record_instance(classifier):
+    """The classifier must not mutate the input record — it returns a copy."""
+    record = _record(
+        name="resume_screener",
+        description="AI resume screening system for candidate scoring",
+        provider="OpenAI",
+    )
+    original_risk = record.risk_classification
+    original_rationale = record.classification_rationale
+    original_tags = dict(record.tags)
+
+    result = classifier.classify(record)
+
+    # The returned record should have classification populated.
+    assert result.risk_classification == RiskLevel.HIGH_RISK
+    # The input must remain untouched.
+    assert record.risk_classification == original_risk
+    assert record.classification_rationale == original_rationale
+    assert record.tags == original_tags
+    # And it must be a different object.
+    assert result is not record
+
+
+def test_classify_does_not_share_tags_dict_with_input(classifier):
+    """Mutating the result's tags must not bleed back into the input."""
+    record = _record(name="x", description="ETL pipeline", provider="pandas")
+    result = classifier.classify(record)
+    assert result.tags is not record.tags
+    result.tags["scratch"] = "value"
+    assert "scratch" not in record.tags
+
+
+# ---------------------------------------------------------------------------
+# Disclaimer / classification_type tag
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("rec_kwargs,expected", [
+    ({"name": "resume_screener", "description": "AI resume screening system for candidate scoring", "provider": "OpenAI"}, RiskLevel.HIGH_RISK),
+    ({"name": "customer_chatbot", "description": "Customer chatbot AI assistant", "provider": "Anthropic"}, RiskLevel.LIMITED_RISK),
+    ({"name": "data_pipeline", "description": "ETL pipeline", "provider": "pandas"}, RiskLevel.MINIMAL_RISK),
+    ({"name": "social_scorer", "description": "social scoring for public benefits using behavioural scoring", "provider": "internal"}, RiskLevel.PROHIBITED),
+])
+def test_classification_type_tag_added_for_every_outcome(classifier, rec_kwargs, expected):
+    result = classifier.classify(_record(**rec_kwargs))
+    assert result.risk_classification == expected
+    assert result.tags.get("classification_type") == "automated_signal", (
+        f"Missing classification_type=automated_signal disclaimer tag for {rec_kwargs['name']!r}"
+    )

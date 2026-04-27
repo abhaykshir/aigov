@@ -6,7 +6,9 @@
 
 ## tl;dr
 
-aigov scans your codebase, CI pipeline, and cloud infrastructure to automatically discover every AI system in use, classify each one against the EU AI Act, and flag the compliance gaps your team needs to close. It works like `trivy` for CVEs — but for AI governance risk. Built for engineering teams who must achieve EU AI Act compliance before the August 2026 enforcement deadline.
+aigov scans your codebase, CI pipeline, and cloud infrastructure to automatically discover every AI system in use, produce an automated EU AI Act risk signal for each one, and flag the compliance gaps your team needs to close. It works like `trivy` for CVEs — but for AI governance risk. Built for engineering teams who must achieve EU AI Act compliance before the August 2026 enforcement deadline.
+
+> **Disclaimer:** aigov classifications are automated signals based on pattern matching. They are **not legal advice**. Consult qualified legal counsel for compliance decisions.
 
 ---
 
@@ -18,7 +20,7 @@ The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisati
 
 ## What does aigov do?
 
-aigov runs a four-stage pipeline: **discover** AI systems from imports, API keys, MCP configs, and cloud resources; **classify** each finding against the EU AI Act risk tiers; **gap-analyze** what compliance controls are missing; and **generate** draft documentation and conformity declarations. The full pipeline runs in a single command:
+aigov runs a four-stage pipeline: **discover** AI systems from imports, API keys, MCP configs, and cloud resources; produce an **automated risk signal** against the EU AI Act risk tiers (pattern matching, not legal advice); **gap-analyze** what compliance controls are missing; and **generate** draft documentation and conformity declarations. The full pipeline runs in a single command:
 
 ```bash
 aigov scan . --classify --gaps --docs

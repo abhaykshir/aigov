@@ -302,3 +302,16 @@ class TestGapReportStructure:
         report = analyzer.analyze([high_risk_record])
         names = [g.requirement_name for g in report.systems[0].gaps]
         assert len(names) == len(set(names))
+
+
+# ---------------------------------------------------------------------------
+# Disclaimer in gap report markdown output
+# ---------------------------------------------------------------------------
+
+class TestGapReportDisclaimer:
+    def test_markdown_includes_legal_disclaimer(self, analyzer, high_risk_record):
+        from aigov.core.reporter import gap_report_to_markdown
+        report = analyzer.analyze([high_risk_record])
+        md = gap_report_to_markdown(report)
+        assert "not legal advice" in md.lower()
+        assert "automated signal" in md.lower() or "pattern matching" in md.lower()

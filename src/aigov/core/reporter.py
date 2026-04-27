@@ -17,6 +17,14 @@ if TYPE_CHECKING:
     from aigov.core.gaps import GapReport
 
 
+# Public disclaimer used across gap reports, docs generator, and CLI output.
+# Classifications are pattern-matching heuristics, not legal determinations.
+_AUTOMATED_SIGNAL_DISCLAIMER = (
+    "This classification is an automated signal based on pattern matching. "
+    "It is not legal advice. Consult legal counsel for compliance decisions."
+)
+
+
 # ---------------------------------------------------------------------------
 # Risk-level display helpers
 # ---------------------------------------------------------------------------
@@ -365,6 +373,9 @@ def print_gap_report(gap_report: GapReport, console: Console | None = None) -> N
     console.print()
     console.rule("[bold]EU AI Act Compliance Gap Analysis[/bold]")
     console.print(
+        f"\n  [dim italic]Disclaimer: {_AUTOMATED_SIGNAL_DISCLAIMER}[/dim italic]"
+    )
+    console.print(
         f"\n  Deadline: [{deadline_color}]{deadline_str}[/{deadline_color}] — "
         f"[{deadline_color}]{days} days remaining[/{deadline_color}]"
     )
@@ -451,6 +462,7 @@ def gap_report_to_markdown(gap_report: GapReport) -> str:
     w("# EU AI Act Compliance Gap Report\n\n")
     w(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  \n")
     w(f"Deadline: **{gap_report.deadline.isoformat()}** ({summary['days_until_deadline']} days remaining)  \n\n")
+    w(f"> **Disclaimer:** {_AUTOMATED_SIGNAL_DISCLAIMER}\n\n")
 
     w("## Overall Summary\n\n")
     w(f"| Metric | Value |\n|--------|-------|\n")

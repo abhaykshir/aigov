@@ -77,6 +77,21 @@ def scan(
         None, "--rules",
         help="Custom rules file path (default: .aigov-rules.yaml in cwd).",
     ),
+    local_config: bool = typer.Option(
+        False, "--local-config",
+        help=(
+            "Also scan OS-level MCP client configs (Claude Desktop, Cursor, "
+            "Windsurf, VS Code personal configs). Off by default — only the "
+            "given paths are scanned."
+        ),
+    ),
+    strict: bool = typer.Option(
+        False, "--strict",
+        help=(
+            "Exit with code 1 if any scanner raises an error. Default behavior "
+            "logs scanner failures as warnings and continues."
+        ),
+    ),
 ) -> None:
     """Discover AI systems in the specified paths."""
     from pathlib import Path as _Path
@@ -90,7 +105,7 @@ def scan(
     enabled = [s.strip() for s in scanners.split(",")] if scanners else None
 
     try:
-        engine = ScanEngine(paths=targets, enabled_scanners=enabled)
+        engine = ScanEngine(paths=targets, enabled_scanners=enabled, local_config=local_config)
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
@@ -109,6 +124,14 @@ def scan(
                 progress.update(task, description=f"Running [cyan]{scanner_name}[/cyan]...")
 
         result = engine.run(progress_callback=on_progress)
+
+    if strict and result.scanner_errors:
+        console.print(
+            f"[red]Strict mode:[/red] {len(result.scanner_errors)} scanner(s) failed."
+        )
+        for err in result.scanner_errors:
+            console.print(f"  [red]{err}[/red]")
+        raise typer.Exit(code=1)
 
     if do_classify:
         fw_list = [f.strip() for f in frameworks.split(",")]

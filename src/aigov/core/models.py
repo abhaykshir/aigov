@@ -54,6 +54,19 @@ class AISystemRecord:
     classification_rationale: Optional[str] = None
     tags: dict[str, str] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.confidence, (int, float)) or not (0.0 <= float(self.confidence) <= 1.0):
+            raise ValueError(
+                f"AISystemRecord.confidence must be between 0.0 and 1.0 inclusive, "
+                f"got {self.confidence!r}"
+            )
+        if not (isinstance(self.provider, str) and self.provider.strip()):
+            raise ValueError("AISystemRecord.provider must be a non-empty string")
+        if not (isinstance(self.source_location, str) and self.source_location.strip()):
+            raise ValueError("AISystemRecord.source_location must be a non-empty string")
+        if not (isinstance(self.source_scanner, str) and self.source_scanner.strip()):
+            raise ValueError("AISystemRecord.source_scanner must be a non-empty string")
+
     @classmethod
     def from_dict(cls, data: dict) -> "AISystemRecord":
         from datetime import datetime

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +11,10 @@ import yaml
 from aigov.core.models import AISystemRecord, RiskLevel
 
 _YAML_DIR = Path(__file__).parent
+
+# Disclaimer marker added to every classified record so consumers know the
+# output is a machine signal, not legal advice.
+_CLASSIFICATION_TYPE_TAG = "automated_signal"
 
 
 def _load_yaml(filename: str) -> dict:
@@ -146,7 +151,10 @@ def _rationale(level: str, category: Optional[str], match: _RuleMatch) -> str:
 
 
 class EUAIActClassifier:
-    """Classifies AISystemRecord instances under the EU AI Act risk framework."""
+    """Classifies AISystemRecord instances under the EU AI Act risk framework.
+
+    Always returns a new AISystemRecord — input records are never mutated.
+    """
 
     def __init__(self) -> None:
         prohibited_data = _load_yaml("prohibited.yaml")
@@ -158,7 +166,10 @@ class EUAIActClassifier:
         self._transparency: list[dict] = transparency_data.get("obligations", [])
 
     def classify(self, record: AISystemRecord) -> AISystemRecord:
-        """Return record with risk_classification, classification_rationale, and tags updated."""
+        """Return a new record with risk_classification, rationale, and tags populated.
+
+        The input record is never mutated.
+        """
         searchable = _normalize(
             " ".join([record.name or "", record.description or "", record.source_location or ""])
         )
@@ -170,12 +181,19 @@ class EUAIActClassifier:
         match = _best_match(self._prohibited, searchable, lib_text, provider, prohibited_mode=True)
         if match:
             rule = prohibited_rules.get(match.rule_id, {})
-            record.risk_classification = RiskLevel.PROHIBITED
-            record.classification_rationale = _rationale("PROHIBITED", None, match)
-            record.tags["confidence_adjustment"] = _confidence(match)
-            record.tags["eu_ai_act_category"] = match.rule_name
-            record.tags["eu_ai_act_article"] = rule.get("article_reference", "Article 5")
-            return record
+            new_tags = {
+                **record.tags,
+                "confidence_adjustment": _confidence(match),
+                "eu_ai_act_category": match.rule_name,
+                "eu_ai_act_article": rule.get("article_reference", "Article 5"),
+                "classification_type": _CLASSIFICATION_TYPE_TAG,
+            }
+            return dataclasses.replace(
+                record,
+                risk_classification=RiskLevel.PROHIBITED,
+                classification_rationale=_rationale("PROHIBITED", None, match),
+                tags=new_tags,
+            )
 
         # 2. High-risk systems (Annex III)
         annex_rules = {r.get("id"): r for r in self._annex_iii}
@@ -184,12 +202,19 @@ class EUAIActClassifier:
             rule = annex_rules.get(match.rule_id, {})
             cat_num = match.rule_id.replace("annex_iii_", "")
             category = f"Annex III category {cat_num} ({match.rule_name})"
-            record.risk_classification = RiskLevel.HIGH_RISK
-            record.classification_rationale = _rationale("HIGH_RISK", category, match)
-            record.tags["confidence_adjustment"] = _confidence(match)
-            record.tags["eu_ai_act_category"] = match.rule_name
-            record.tags["eu_ai_act_article"] = rule.get("article_reference", "Annex III")
-            return record
+            new_tags = {
+                **record.tags,
+                "confidence_adjustment": _confidence(match),
+                "eu_ai_act_category": match.rule_name,
+                "eu_ai_act_article": rule.get("article_reference", "Annex III"),
+                "classification_type": _CLASSIFICATION_TYPE_TAG,
+            }
+            return dataclasses.replace(
+                record,
+                risk_classification=RiskLevel.HIGH_RISK,
+                classification_rationale=_rationale("HIGH_RISK", category, match),
+                tags=new_tags,
+            )
 
         # 3. Limited-risk systems (Article 50 transparency obligations)
         transparency_rules = {r.get("id"): r for r in self._transparency}
@@ -197,20 +222,34 @@ class EUAIActClassifier:
         if match:
             rule = transparency_rules.get(match.rule_id, {})
             category = f"Article 50 transparency ({match.rule_name})"
-            record.risk_classification = RiskLevel.LIMITED_RISK
-            record.classification_rationale = _rationale("LIMITED_RISK", category, match)
-            record.tags["confidence_adjustment"] = _confidence(match)
-            record.tags["eu_ai_act_category"] = match.rule_name
-            record.tags["eu_ai_act_article"] = rule.get("article_reference", "Article 50")
-            return record
+            new_tags = {
+                **record.tags,
+                "confidence_adjustment": _confidence(match),
+                "eu_ai_act_category": match.rule_name,
+                "eu_ai_act_article": rule.get("article_reference", "Article 50"),
+                "classification_type": _CLASSIFICATION_TYPE_TAG,
+            }
+            return dataclasses.replace(
+                record,
+                risk_classification=RiskLevel.LIMITED_RISK,
+                classification_rationale=_rationale("LIMITED_RISK", category, match),
+                tags=new_tags,
+            )
 
         # 4. Default — no signals detected
-        record.risk_classification = RiskLevel.MINIMAL_RISK
-        record.classification_rationale = (
-            "No EU AI Act risk signals detected in name, description, source location, "
-            "or provider. Classified as MINIMAL_RISK by default."
+        new_tags = {
+            **record.tags,
+            "confidence_adjustment": "high",
+            "eu_ai_act_category": "",
+            "eu_ai_act_article": "",
+            "classification_type": _CLASSIFICATION_TYPE_TAG,
+        }
+        return dataclasses.replace(
+            record,
+            risk_classification=RiskLevel.MINIMAL_RISK,
+            classification_rationale=(
+                "No EU AI Act risk signals detected in name, description, source location, "
+                "or provider. Classified as MINIMAL_RISK by default."
+            ),
+            tags=new_tags,
         )
-        record.tags["confidence_adjustment"] = "high"
-        record.tags["eu_ai_act_category"] = ""
-        record.tags["eu_ai_act_article"] = ""
-        return record

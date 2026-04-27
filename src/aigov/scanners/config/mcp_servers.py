@@ -284,29 +284,70 @@ def _source_client_from_name(filename: str) -> str:
 # ---------------------------------------------------------------------------
 
 class McpServersScanner(BaseScanner):
+    """Discovers MCP server configurations.
+
+    By default only the paths passed to ``scan()`` are inspected — project files
+    like ``.mcp.json`` and ``.claude/settings.json`` inside those directories.
+    Pass ``local_config=True`` (the ``--local-config`` CLI flag) to also walk
+    OS-level config locations such as Claude Desktop, Cursor, and Windsurf user
+    configs.  Those locations are off by default because they describe the
+    operator's personal environment, not the project being scanned.
+    """
+
+    def __init__(self, local_config: bool = False) -> None:
+        self._local_config = local_config
+
     @property
     def name(self) -> str:
         return "config.mcp_servers"
 
     @property
     def description(self) -> str:
-        return "Discovers MCP server configurations from AI agent clients and project files"
+        return "Discovers MCP server configurations from project files (and OS-level configs with --local-config)"
 
     def scan(self, paths: list[str]) -> list[AISystemRecord]:
         timestamp = datetime.now(timezone.utc)
         records: list[AISystemRecord] = []
         seen_locations: set[str] = set()
 
+        # Resolve the paths the user passed so we never accidentally reach into
+        # an OS-level client config that happens to share a parent with one of
+        # them (e.g. a $HOME-level scan).  Only honour these when --local-config
+        # is off.
+        scoped_roots: list[Path] = []
+        for p in paths:
+            try:
+                scoped_roots.append(Path(p).resolve())
+            except OSError:
+                continue
+
+        client_paths: set[str] = set()
+        for client in _client_configs():
+            try:
+                client_paths.add(str(client.path.resolve()))
+            except OSError:
+                # Path can't be resolved on this platform — still skip it by
+                # name comparison via the unresolved string.
+                client_paths.add(str(client.path))
+
         def _ingest(path: Path, client_id: str, confidence: float) -> None:
-            loc = str(path.resolve())
+            try:
+                loc = str(path.resolve())
+            except OSError:
+                loc = str(path)
             if loc in seen_locations:
+                return
+            # Skip known OS-level client configs unless explicitly opted-in.
+            if not self._local_config and loc in client_paths:
                 return
             seen_locations.add(loc)
             records.extend(_parse_config_file(path, client_id, confidence, timestamp))
 
-        # 1. Known client config files (OS-specific, not path-relative).
-        for client in _client_configs():
-            _ingest(client.path, client.client_id, 0.95)
+        # 1. Known client config files (OS-specific, not path-relative) — only
+        #    when --local-config is set.
+        if self._local_config:
+            for client in _client_configs():
+                _ingest(client.path, client.client_id, 0.95)
 
         # 2. Explicitly-passed files — parse any JSON file directly.
         #    Confidence follows client identity: known clients = 0.95, generic project files = 0.85.

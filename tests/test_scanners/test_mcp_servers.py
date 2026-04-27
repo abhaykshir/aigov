@@ -303,3 +303,72 @@ def test_to_dict_json_safe(tmp_path):
     recs = _scan_desktop_fixture(tmp_path) + _scan_mcp_json_fixture(tmp_path)
     for rec in recs:
         json.dumps(rec.to_dict())  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# --local-config scope: OS-level configs are ignored by default
+# ---------------------------------------------------------------------------
+
+def test_default_does_not_scan_os_client_configs(tmp_path, monkeypatch):
+    """Without local_config, the scanner must not pull in OS-level client configs.
+
+    We point APPDATA / HOME at an empty tmp dir to make sure that even if a
+    real Claude Desktop / Cursor config exists on the host, the scanner ignores
+    it — and that scanning an empty project tree returns zero records.
+    """
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setenv("APPDATA", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    project = tmp_path / "proj"
+    project.mkdir()
+
+    recs = McpServersScanner().scan([str(project)])
+    assert recs == []
+
+
+def test_local_config_flag_scans_os_client_configs(tmp_path, monkeypatch):
+    """With local_config=True, an OS-level Claude Desktop config is detected."""
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setenv("APPDATA", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    # Plant a fake client config in the location the scanner expects.
+    import sys
+    if sys.platform == "win32":
+        target = fake_home / "Claude" / "claude_desktop_config.json"
+    else:
+        target = fake_home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(CLAUDE_DESKTOP_FIXTURE, target)
+
+    project = tmp_path / "proj"
+    project.mkdir()
+
+    # Default mode — must NOT find the OS-level config.
+    default_recs = McpServersScanner().scan([str(project)])
+    assert default_recs == []
+
+    # Opt-in mode — must find the OS-level config.
+    local_recs = McpServersScanner(local_config=True).scan([str(project)])
+    names = {r.name for r in local_recs}
+    assert "filesystem" in names or "github" in names
+
+
+def test_local_config_flag_does_not_break_project_file_scan(tmp_path, monkeypatch):
+    """Project-level files inside the scanned dir continue to work in either mode."""
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setenv("APPDATA", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    shutil.copy(MCP_JSON_FIXTURE, project / ".mcp.json")
+
+    for scanner in (McpServersScanner(), McpServersScanner(local_config=True)):
+        recs = scanner.scan([str(project)])
+        names = {r.name for r in recs}
+        assert "brave-search" in names

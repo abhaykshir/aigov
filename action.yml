@@ -77,7 +77,8 @@ runs:
 
     - name: Install aigov
       shell: bash
-      run: pip install aigov
+      working-directory: ${{ github.action_path }}
+      run: pip install .
 
     - name: Run aigov scan
       id: scan
