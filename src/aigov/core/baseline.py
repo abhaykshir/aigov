@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Optional
 
 from aigov.core.engine import ScanResult
+from aigov.core.metadata import build_metadata
 from aigov.core.models import AISystemRecord
 
 _DEFAULT_BASELINE_PATH = ".aigov-baseline.json"
-_AIGOV_VERSION = "0.4.0"
 
 
 # ---------------------------------------------------------------------------
@@ -62,9 +62,10 @@ def save_baseline(
     Returns the resolved path that was written.
     """
     dest = Path(path)
+    metadata = build_metadata()
     payload = {
-        "aigov_version": _AIGOV_VERSION,
-        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "aigov_version": metadata["version"],
+        "saved_at": metadata["generated_at"],
         "summary": {
             "total_found": scan_result.total_found,
             "scanners_run": scan_result.scanners_run,

@@ -19,11 +19,12 @@ from aigov.cli.commands.export_cmd import export_command
 from aigov.cli.commands.gaps import gaps_command
 from aigov.cli.commands.hooks import app as _hooks_app
 from aigov.cli.commands.scan import scan_command
+from aigov.version import __version__
 
 app = typer.Typer(help="AI Governance-as-Code CLI — discover, classify, and govern AI systems.")
 console = Console()
 
-_VERSION = "aigov 0.4.0"
+_VERSION = f"aigov {__version__}"
 
 # Top-level commands.
 app.command("scan")(scan_command)

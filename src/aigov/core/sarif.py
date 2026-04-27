@@ -4,14 +4,19 @@ import json
 import re
 from typing import TYPE_CHECKING
 
+from aigov.core.metadata import tool_name as _tool_name, tool_version as _tool_version
+
 if TYPE_CHECKING:
     from aigov.core.engine import ScanResult
     from aigov.core.models import AISystemRecord
 
 _SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json"
-_TOOL_NAME = "aigov"
-_TOOL_VERSION = "0.4.0"
 _INFORMATION_URI = "https://github.com/abhaykshir/aigov"
+
+# Re-exported for callers (and the SARIF test) that want the canonical
+# tool name / version without reaching into ``aigov.core.metadata`` themselves.
+_TOOL_NAME = _tool_name()
+_TOOL_VERSION = _tool_version()
 
 _RULES: list[dict] = [
     {

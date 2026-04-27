@@ -1,6 +1,8 @@
 [project]
 name = "aigov"
-version = "0.4.0"
+# Version lives in src/aigov/version.py (__version__) — bump there only.
+# setuptools reads it via [tool.setuptools.dynamic] below.
+dynamic = ["version"]
 description = "AI Governance-as-Code CLI — discover, classify, and govern AI systems"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,3 +41,6 @@ aigov-check = "aigov.cli.check_risk:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "aigov.version.__version__"}

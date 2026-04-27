@@ -112,9 +112,11 @@ def _finding_dict(record: AISystemRecord) -> dict:
 
 
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
+    from aigov.core.metadata import build_metadata
+    metadata = build_metadata()
     payload = {
-        "aigov_version": "0.4.0",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "aigov_version": metadata["version"],
+        "generated_at": metadata["generated_at"],
         "summary": {
             "total_found": result.total_found,
             "duration_seconds": round(result.duration_seconds, 3),
