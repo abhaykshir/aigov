@@ -1,3 +1,4 @@
+"""`aigov baseline` commands — save and diff against a scan baseline."""
 from __future__ import annotations
 
 import json
@@ -223,7 +224,6 @@ def _print_drift_report(report: DriftReport) -> None:
         )
         return
 
-    # New systems
     if report.new_systems:
         table = Table(title=f"New Systems ({len(report.new_systems)})", show_lines=False)
         table.add_column("Name", style="bold cyan", min_width=20)
@@ -249,7 +249,6 @@ def _print_drift_report(report: DriftReport) -> None:
         console.print()
         console.print(table)
 
-    # Removed systems
     if report.removed_systems:
         table = Table(title=f"Removed Systems ({len(report.removed_systems)})", show_lines=False)
         table.add_column("Name", style="bold", min_width=20)
@@ -260,7 +259,6 @@ def _print_drift_report(report: DriftReport) -> None:
         console.print()
         console.print(table)
 
-    # Changed classification
     if report.changed_classification:
         table = Table(
             title=f"Changed Classification ({len(report.changed_classification)})",
@@ -286,7 +284,6 @@ def _print_drift_report(report: DriftReport) -> None:
         console.print()
         console.print(table)
 
-    # Summary line
     parts: list[str] = []
     if report.new_systems:
         critical = sum(1 for r in report.new_systems if r.risk_classification in _CRITICAL_LEVELS)

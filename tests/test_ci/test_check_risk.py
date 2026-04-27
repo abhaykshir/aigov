@@ -22,13 +22,23 @@ def _finding(
     risk: str,
     name: str = "Test System",
     loc: str = "src/app.py:1",
+    tags: dict | None = None,
 ) -> dict:
     return {
         "id": "abc123",
         "name": name,
         "risk_classification": risk,
         "source_location": loc,
+        "tags": tags or {},
     }
+
+
+def _allowlisted(risk: str, name: str = "Approved System", reason: str = "Approved by board 2026-01-15") -> dict:
+    return _finding(
+        risk,
+        name=name,
+        tags={"allowlisted": "true", "allowlist_reason": reason},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +188,69 @@ class TestCheckRiskOutput:
         main([f, "--fail-on", "prohibited"])
         captured = capsys.readouterr()
         assert "prohibited" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Allowlist bypass — records tagged allowlisted=true do not trigger failures
+# ---------------------------------------------------------------------------
+
+class TestCheckRiskAllowlist:
+    def test_allowlisted_high_risk_does_not_trigger(self, tmp_path):
+        """A HIGH_RISK record marked allowlisted in tags must not fail CI."""
+        f = _results_file(
+            tmp_path,
+            [_allowlisted("high_risk", name="Approved Resume Screener")],
+        )
+        assert main([f, "--fail-on", "high_risk"]) == 0
+
+    def test_allowlisted_prohibited_does_not_trigger(self, tmp_path):
+        """Even PROHIBITED records are bypassed when explicitly allowlisted."""
+        f = _results_file(tmp_path, [_allowlisted("prohibited")])
+        assert main([f]) == 0
+
+    def test_non_allowlisted_high_risk_still_triggers(self, tmp_path):
+        """A HIGH_RISK record without the allowlist tag still fails CI."""
+        f = _results_file(tmp_path, [_finding("high_risk")])
+        assert main([f, "--fail-on", "high_risk"]) == 1
+
+    def test_mixed_allowlisted_and_non_allowlisted(self, tmp_path):
+        """Allowlisted records are skipped; the unlisted one still triggers."""
+        findings = [
+            _allowlisted("high_risk", name="Approved Tool"),
+            _finding("high_risk", name="Unapproved Tool"),
+        ]
+        f = _results_file(tmp_path, findings)
+        assert main([f, "--fail-on", "high_risk"]) == 1
+
+    def test_allowlist_reason_is_printed(self, tmp_path, capsys):
+        """The allowlist reason must surface so reviewers can audit the bypass."""
+        reason = "Approved by AI governance board 2026-01-15"
+        findings = [_allowlisted("high_risk", name="ApprovedSystem", reason=reason)]
+        f = _results_file(tmp_path, findings)
+        main([f, "--fail-on", "high_risk"])
+        captured = capsys.readouterr()
+        assert "Skipped (allowlisted)" in captured.out
+        assert "ApprovedSystem" in captured.out
+        assert reason in captured.out
+
+    def test_allowlisted_string_false_does_not_skip(self, tmp_path):
+        """Only `allowlisted: "true"` triggers the skip — anything else is ignored."""
+        finding = _finding(
+            "high_risk",
+            tags={"allowlisted": "false", "allowlist_reason": "ignored"},
+        )
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on", "high_risk"]) == 1
+
+    def test_allowlisted_missing_reason_prints_placeholder(self, tmp_path, capsys):
+        """When the reason tag is missing, the skip line still names the record."""
+        finding = _finding(
+            "high_risk",
+            name="QuietBypass",
+            tags={"allowlisted": "true"},
+        )
+        f = _results_file(tmp_path, [finding])
+        main([f, "--fail-on", "high_risk"])
+        captured = capsys.readouterr()
+        assert "Skipped (allowlisted)" in captured.out
+        assert "QuietBypass" in captured.out

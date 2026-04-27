@@ -1,3 +1,4 @@
+"""`aigov export` command — export scan results for GRC platform integration."""
 from __future__ import annotations
 
 import json
@@ -10,7 +11,6 @@ from rich.console import Console
 from aigov.core.exporter import records_from_scan_json, to_csv, to_flat_json
 from aigov.core.reporter import write_output
 
-app = typer.Typer(help="Export scan results for GRC platform integration.")
 console = Console()
 
 _VALID_FORMATS = {"csv", "json", "sarif"}
@@ -82,6 +82,3 @@ def export_command(
         console.print(f"[green]Exported {len(records)} record(s) to {out_file}[/green]")
     else:
         write_output(content, None)
-
-
-app.command("export")(export_command)

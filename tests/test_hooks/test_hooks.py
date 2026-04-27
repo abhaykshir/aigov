@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aigov.cli.hooks import (
+from aigov.cli.commands.hooks import (
     _HOOK_MARKER,
     _BACKUP_SUFFIX,
     _build_hook_script,

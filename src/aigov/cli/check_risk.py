@@ -48,10 +48,23 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     findings = raw.get("findings", [])
-    triggered = [
-        f for f in findings
-        if (f.get("risk_classification") or "").lower() in fail_levels
-    ]
+
+    triggered: list[dict] = []
+    skipped_allowlisted: list[dict] = []
+    for finding in findings:
+        if (finding.get("risk_classification") or "").lower() not in fail_levels:
+            continue
+        if _is_allowlisted(finding):
+            skipped_allowlisted.append(finding)
+            continue
+        triggered.append(finding)
+
+    # Always surface allowlist skips so reviewers can audit which records were
+    # waved through and why — silent allowlisting is a policy footgun.
+    for finding in skipped_allowlisted:
+        name = finding.get("name") or finding.get("id") or "unknown"
+        reason = (finding.get("tags") or {}).get("allowlist_reason") or "no reason recorded"
+        print(f"  Skipped (allowlisted): {name} — {reason}")
 
     if not triggered:
         label = ", ".join(sorted(fail_levels))
@@ -69,6 +82,23 @@ def main(argv: list[str] | None = None) -> int:
         loc = finding.get("source_location", "")
         print(f"  [{risk}] {name}  ({loc})")
     return 1
+
+
+def _is_allowlisted(finding: dict) -> bool:
+    """A finding is allowlisted when its tags carry ``allowlisted: "true"``.
+
+    The Allowlist engine writes that tag during classification when a record
+    matches an entry in ``.aigov-allowlist.yaml``. Treating it as a CI bypass
+    here keeps approved systems from blocking the pipeline while still leaving
+    them visible in the underlying scan output.
+    """
+    tags = finding.get("tags") or {}
+    flag = tags.get("allowlisted")
+    if isinstance(flag, bool):
+        return flag
+    if isinstance(flag, str):
+        return flag.strip().lower() == "true"
+    return False
 
 
 if __name__ == "__main__":

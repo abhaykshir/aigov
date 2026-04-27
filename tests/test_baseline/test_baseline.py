@@ -386,7 +386,7 @@ class TestDriftReport:
 class TestFailOnDrift:
     def test_fail_on_drift_exit_1_for_prohibited(self, tmp_path, monkeypatch):
         from typer.testing import CliRunner
-        from aigov.cli.baseline import app
+        from aigov.cli.commands.baseline import app
 
         baseline_path = tmp_path / "bl.json"
         # Empty baseline so all current systems are new
@@ -407,8 +407,8 @@ class TestFailOnDrift:
             baseline_date=_now(),
         )
 
-        with patch("aigov.cli.baseline._run_scan_and_classify") as mock_scan, \
-             patch("aigov.cli.baseline.compare_to_baseline") as mock_compare:
+        with patch("aigov.cli.commands.baseline._run_scan_and_classify") as mock_scan, \
+             patch("aigov.cli.commands.baseline.compare_to_baseline") as mock_compare:
             mock_scan.return_value = _result(prohibited_rec)
             mock_compare.return_value = mock_report
 
@@ -420,7 +420,7 @@ class TestFailOnDrift:
 
     def test_fail_on_drift_exit_1_for_high_risk(self, tmp_path):
         from typer.testing import CliRunner
-        from aigov.cli.baseline import app
+        from aigov.cli.commands.baseline import app
         from unittest.mock import patch
 
         high_risk_rec = _record(risk=RiskLevel.HIGH_RISK)
@@ -433,8 +433,8 @@ class TestFailOnDrift:
         )
 
         runner = CliRunner()
-        with patch("aigov.cli.baseline._run_scan_and_classify") as ms, \
-             patch("aigov.cli.baseline.compare_to_baseline") as mc:
+        with patch("aigov.cli.commands.baseline._run_scan_and_classify") as ms, \
+             patch("aigov.cli.commands.baseline.compare_to_baseline") as mc:
             ms.return_value = _result(high_risk_rec)
             mc.return_value = mock_report
             result = runner.invoke(app, ["diff", "--fail-on-drift"])
@@ -442,7 +442,7 @@ class TestFailOnDrift:
 
     def test_fail_on_drift_exit_0_for_minimal(self, tmp_path):
         from typer.testing import CliRunner
-        from aigov.cli.baseline import app
+        from aigov.cli.commands.baseline import app
         from unittest.mock import patch
 
         minimal_rec = _record(risk=RiskLevel.MINIMAL_RISK)
@@ -455,8 +455,8 @@ class TestFailOnDrift:
         )
 
         runner = CliRunner()
-        with patch("aigov.cli.baseline._run_scan_and_classify") as ms, \
-             patch("aigov.cli.baseline.compare_to_baseline") as mc:
+        with patch("aigov.cli.commands.baseline._run_scan_and_classify") as ms, \
+             patch("aigov.cli.commands.baseline.compare_to_baseline") as mc:
             ms.return_value = _result(minimal_rec)
             mc.return_value = mock_report
             result = runner.invoke(app, ["diff", "--fail-on-drift"])
@@ -464,7 +464,7 @@ class TestFailOnDrift:
 
     def test_no_fail_on_drift_flag_always_exits_0(self):
         from typer.testing import CliRunner
-        from aigov.cli.baseline import app
+        from aigov.cli.commands.baseline import app
         from unittest.mock import patch
 
         prohibited_rec = _record(risk=RiskLevel.PROHIBITED)
@@ -477,8 +477,8 @@ class TestFailOnDrift:
         )
 
         runner = CliRunner()
-        with patch("aigov.cli.baseline._run_scan_and_classify") as ms, \
-             patch("aigov.cli.baseline.compare_to_baseline") as mc:
+        with patch("aigov.cli.commands.baseline._run_scan_and_classify") as ms, \
+             patch("aigov.cli.commands.baseline.compare_to_baseline") as mc:
             ms.return_value = _result(prohibited_rec)
             mc.return_value = mock_report
             # No --fail-on-drift flag
