@@ -229,9 +229,28 @@ class TestCheckRiskAllowlist:
         f = _results_file(tmp_path, findings)
         main([f, "--fail-on", "high_risk"])
         captured = capsys.readouterr()
-        assert "Skipped (allowlisted)" in captured.out
+        assert "Suppressed (allowlisted)" in captured.out
         assert "ApprovedSystem" in captured.out
         assert reason in captured.out
+
+    def test_suppressed_count_summary_printed(self, tmp_path, capsys):
+        """A count line summarises how many findings were suppressed."""
+        findings = [
+            _allowlisted("high_risk", name="A"),
+            _allowlisted("high_risk", name="B"),
+            _allowlisted("high_risk", name="C"),
+        ]
+        f = _results_file(tmp_path, findings)
+        main([f, "--fail-on", "high_risk"])
+        captured = capsys.readouterr()
+        assert "Suppressed (allowlisted): 3 finding(s)" in captured.out
+
+    def test_no_suppression_summary_when_none_allowlisted(self, tmp_path, capsys):
+        """The count line must not appear when nothing was suppressed."""
+        f = _results_file(tmp_path, [_finding("minimal_risk")])
+        main([f])
+        captured = capsys.readouterr()
+        assert "Suppressed (allowlisted)" not in captured.out
 
     def test_allowlisted_string_false_does_not_skip(self, tmp_path):
         """Only `allowlisted: "true"` triggers the skip — anything else is ignored."""
@@ -243,7 +262,7 @@ class TestCheckRiskAllowlist:
         assert main([f, "--fail-on", "high_risk"]) == 1
 
     def test_allowlisted_missing_reason_prints_placeholder(self, tmp_path, capsys):
-        """When the reason tag is missing, the skip line still names the record."""
+        """When the reason tag is missing, the suppression line still names the record."""
         finding = _finding(
             "high_risk",
             name="QuietBypass",
@@ -252,5 +271,5 @@ class TestCheckRiskAllowlist:
         f = _results_file(tmp_path, [finding])
         main([f, "--fail-on", "high_risk"])
         captured = capsys.readouterr()
-        assert "Skipped (allowlisted)" in captured.out
+        assert "Suppressed (allowlisted)" in captured.out
         assert "QuietBypass" in captured.out

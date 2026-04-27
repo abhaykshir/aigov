@@ -59,12 +59,15 @@ def main(argv: list[str] | None = None) -> int:
             continue
         triggered.append(finding)
 
-    # Always surface allowlist skips so reviewers can audit which records were
-    # waved through and why — silent allowlisting is a policy footgun.
-    for finding in skipped_allowlisted:
-        name = finding.get("name") or finding.get("id") or "unknown"
-        reason = (finding.get("tags") or {}).get("allowlist_reason") or "no reason recorded"
-        print(f"  Skipped (allowlisted): {name} — {reason}")
+    # Always surface allowlist suppressions so reviewers can audit which
+    # records were waved through and why — silent allowlisting is a policy
+    # footgun.
+    if skipped_allowlisted:
+        print(f"Suppressed (allowlisted): {len(skipped_allowlisted)} finding(s)")
+        for finding in skipped_allowlisted:
+            name = finding.get("name") or finding.get("id") or "unknown"
+            reason = (finding.get("tags") or {}).get("allowlist_reason") or "no reason recorded"
+            print(f"  Suppressed (allowlisted): {name} — {reason}")
 
     if not triggered:
         label = ", ".join(sorted(fail_levels))
