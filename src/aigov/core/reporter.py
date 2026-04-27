@@ -80,6 +80,36 @@ def _sorted_breakdown(d: dict[str, int]) -> list[tuple[str, int]]:
 # JSON reporter
 # ---------------------------------------------------------------------------
 
+def _has_risk_scores(result: ScanResult) -> bool:
+    return any("risk_score" in r.tags for r in result.records)
+
+
+def _finding_dict(record: AISystemRecord) -> dict:
+    """Serialize a record, lifting risk_* tags into a dedicated top-level field.
+
+    The risk subsystem stores its output inside ``tags`` (which is str→str) so
+    that records remain JSON-safe. For the API, callers want structured fields
+    rather than parsing strings, so we extract and type the values here.
+    """
+    d = record.to_dict()
+    if "risk_score" in record.tags:
+        drivers_raw = record.tags.get("risk_drivers", "")
+        drivers = [s for s in drivers_raw.split(",") if s] if drivers_raw else []
+        try:
+            score = int(record.tags["risk_score"])
+        except (TypeError, ValueError):
+            score = 0
+        try:
+            confidence = float(record.tags.get("risk_confidence", "0"))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        d["risk_score"] = score
+        d["risk_level"] = record.tags.get("risk_level", "")
+        d["risk_drivers"] = drivers
+        d["risk_confidence"] = confidence
+    return d
+
+
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
     payload = {
         "aigov_version": "0.2.1",
@@ -95,7 +125,7 @@ def to_json(result: ScanResult, *, indent: int = 2) -> str:
         },
         "warnings": result.warnings,
         # classification_rationale is included via to_dict() → each finding
-        "findings": [r.to_dict() for r in result.records],
+        "findings": [_finding_dict(r) for r in result.records],
     }
     return json.dumps(payload, indent=indent, ensure_ascii=False)
 
@@ -164,6 +194,26 @@ def to_markdown(result: ScanResult) -> str:
             w(f"| {lvl.value.upper().replace('_', ' ')} | {n} | {notes} |\n")
         w("\n")
 
+    if _has_risk_scores(result):
+        w("## Risk Scoring\n\n")
+        w(
+            "*Context-aware deterministic scores combining EU AI Act "
+            "classification with deployment context (environment, exposure, "
+            "data sensitivity, interaction type). 0–29 low · 30–59 medium · "
+            "60–79 high · 80–100 critical.*\n\n"
+        )
+        w("| # | Name | Score | Level | Drivers | Confidence |\n")
+        w("|---|------|-------|-------|---------|------------|\n")
+        for i, rec in enumerate(result.records, start=1):
+            if "risk_score" not in rec.tags:
+                continue
+            score = rec.tags.get("risk_score", "")
+            level = rec.tags.get("risk_level", "")
+            drivers = rec.tags.get("risk_drivers", "")
+            conf = rec.tags.get("risk_confidence", "")
+            w(f"| {i} | {rec.name} | {score} | {level} | {drivers} | {conf} |\n")
+        w("\n")
+
     if result.warnings:
         w("## Warnings\n\n")
         for warning in result.warnings:
@@ -206,6 +256,35 @@ def to_markdown(result: ScanResult) -> str:
 # Rich table reporter (terminal)
 # ---------------------------------------------------------------------------
 
+def _risk_score_cell(rec: AISystemRecord) -> str:
+    """Color-code the risk score per the bands in scoring._LEVEL_BANDS."""
+    raw = rec.tags.get("risk_score")
+    if raw is None:
+        return ""
+    try:
+        score = int(raw)
+    except (TypeError, ValueError):
+        return raw
+    if score >= 80:
+        color = "bold red"
+    elif score >= 60:
+        color = "dark_orange"
+    elif score >= 30:
+        color = "yellow"
+    else:
+        color = "green"
+    return f"[{color}]{score}[/{color}]"
+
+
+def _drivers_cell(rec: AISystemRecord, max_len: int = 38) -> str:
+    drivers = rec.tags.get("risk_drivers", "")
+    if not drivers:
+        return ""
+    if len(drivers) > max_len:
+        return drivers[: max_len - 1] + "…"
+    return drivers
+
+
 def print_table(result: ScanResult, console: Console | None = None) -> None:
     if console is None:
         console = Console()
@@ -215,6 +294,7 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
         return
 
     classified = _has_classifications(result)
+    risk_scored = _has_risk_scores(result)
 
     table = Table(
         title=f"AI Systems Found ({result.total_found})",
@@ -231,6 +311,9 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
     if classified:
         table.add_column("Risk", min_width=14, no_wrap=True)
         table.add_column("Category", style="dim", min_width=20)
+    if risk_scored:
+        table.add_column("Risk Score", width=10, no_wrap=True)
+        table.add_column("Drivers", style="dim", min_width=28)
 
     for i, rec in enumerate(result.records, start=1):
         jur = rec.tags.get("origin_jurisdiction", "XX")
@@ -251,6 +334,9 @@ def print_table(result: ScanResult, console: Console | None = None) -> None:
         if classified:
             row.append(_risk_cell(rec.risk_classification))
             row.append(rec.tags.get("eu_ai_act_category", ""))
+        if risk_scored:
+            row.append(_risk_score_cell(rec))
+            row.append(_drivers_cell(rec))
 
         table.add_row(*row)
 

@@ -66,6 +66,15 @@ def scan_command(
             "logs scanner failures as warnings and continues."
         ),
     ),
+    with_risk: bool = typer.Option(
+        False, "--with-risk",
+        help=(
+            "Run context-aware risk scoring after classification. Adds a "
+            "0–100 score, a categorical level, and explicit drivers based on "
+            "deployment context (environment, exposure, data sensitivity, "
+            "interaction type). Implies --classify."
+        ),
+    ),
 ) -> None:
     """Discover AI systems in the specified paths."""
     from aigov.core.engine import ScanEngine, classify_results
@@ -77,7 +86,7 @@ def scan_command(
         write_output,
     )
 
-    if do_gaps or do_docs:
+    if do_gaps or do_docs or with_risk:
         do_classify = True
 
     targets = paths or ["."]
@@ -120,6 +129,13 @@ def scan_command(
         except ValueError as exc:
             console.print(f"[red]Classification error:[/red] {exc}")
             raise typer.Exit(code=1)
+
+    if with_risk:
+        from aigov.core.risk import apply_risk
+        scored = apply_risk(result.records, list(result.scanned_paths) or targets)
+        import dataclasses as _dc
+        result = _dc.replace(result, records=scored)
+        result._compute_summaries()
 
     if output == "json":
         content = to_json(result)
