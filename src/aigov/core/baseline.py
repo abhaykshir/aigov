@@ -10,7 +10,7 @@ from aigov.core.engine import ScanResult
 from aigov.core.models import AISystemRecord
 
 _DEFAULT_BASELINE_PATH = ".aigov-baseline.json"
-_AIGOV_VERSION = "0.2.1"
+_AIGOV_VERSION = "0.4.0"
 
 
 # ---------------------------------------------------------------------------

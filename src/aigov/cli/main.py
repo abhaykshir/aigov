@@ -23,7 +23,7 @@ from aigov.cli.commands.scan import scan_command
 app = typer.Typer(help="AI Governance-as-Code CLI — discover, classify, and govern AI systems.")
 console = Console()
 
-_VERSION = "aigov 0.2.1"
+_VERSION = "aigov 0.4.0"
 
 # Top-level commands.
 app.command("scan")(scan_command)

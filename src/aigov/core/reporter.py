@@ -15,6 +15,7 @@ from aigov.core.models import AISystemRecord, RiskLevel
 
 if TYPE_CHECKING:
     from aigov.core.gaps import GapReport
+    from aigov.core.policy import PolicyResult
 
 
 # Public disclaimer used across gap reports, docs generator, and CLI output.
@@ -112,7 +113,7 @@ def _finding_dict(record: AISystemRecord) -> dict:
 
 def to_json(result: ScanResult, *, indent: int = 2) -> str:
     payload = {
-        "aigov_version": "0.2.1",
+        "aigov_version": "0.4.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "total_found": result.total_found,
@@ -623,3 +624,129 @@ def write_output(content: str, out_file: str | None) -> None:
         sys.stdout.write(content)
         if not content.endswith("\n"):
             sys.stdout.write("\n")
+
+
+# ---------------------------------------------------------------------------
+# Explainer / policy CLI rendering
+# ---------------------------------------------------------------------------
+
+_PRIORITY_COLORS = {
+    "critical": "bold red",
+    "high":     "dark_orange",
+    "medium":   "yellow",
+    "low":      "green",
+}
+
+
+def print_explanations(records: list[AISystemRecord], console: Console | None = None) -> None:
+    """Print one boxed explanation per record (summary, factors, actions)."""
+    from rich.panel import Panel
+    from aigov.core.explainer import explain
+
+    if console is None:
+        console = Console()
+    if not records:
+        return
+
+    console.print()
+    console.rule("[bold]Findings — Explanations and Recommended Actions[/bold]")
+    console.print(
+        f"[dim italic]{_AUTOMATED_SIGNAL_DISCLAIMER}[/dim italic]\n"
+    )
+
+    for rec in records:
+        ex = explain(rec)
+        color = _PRIORITY_COLORS.get(ex.priority, "dim")
+        body_lines = [
+            f"[bold]Summary:[/bold] {ex.summary}",
+            "",
+            "[bold]Risk factors:[/bold]",
+        ]
+        body_lines.extend(f"  • {f}" for f in ex.risk_factors)
+        body_lines.append("")
+        body_lines.append("[bold]Recommended actions:[/bold]")
+        body_lines.extend(f"  ▸ {a}" for a in ex.recommended_actions)
+        title = f"[{color}]{rec.name}[/{color}]  [dim]priority: {ex.priority}[/dim]"
+        console.print(Panel("\n".join(body_lines), title=title, border_style=color))
+
+
+def print_policy_result(result: "PolicyResult", console: Console | None = None) -> None:
+    """Render a policy evaluation result on the terminal."""
+    if console is None:
+        console = Console()
+
+    console.print()
+    console.rule("[bold]Policy Evaluation[/bold]")
+
+    if not (result.failures or result.warnings):
+        console.print(
+            f"[bold green]All policies passed[/bold green]  "
+            f"[dim]({len(result.passed)} policy/policies evaluated)[/dim]"
+        )
+        return
+
+    if result.failures:
+        console.print(f"\n[bold red]Failures ({len(result.failures)}):[/bold red]")
+        for match in result.failures:
+            console.print(
+                f"  [red]FAIL[/red] [{match.policy.name}] "
+                f"{match.record.name} ([dim]{match.record.source_location}[/dim]) "
+                f"— {match.policy.description or 'no description'}"
+            )
+    if result.warnings:
+        console.print(f"\n[yellow]Warnings ({len(result.warnings)}):[/yellow]")
+        for match in result.warnings:
+            console.print(
+                f"  [yellow]WARN[/yellow] [{match.policy.name}] "
+                f"{match.record.name} ([dim]{match.record.source_location}[/dim]) "
+                f"— {match.policy.description or 'no description'}"
+            )
+
+    if result.passed:
+        console.print(
+            f"\n[dim]{len(result.passed)} policy/policies passed (no matches)[/dim]"
+        )
+
+
+def explanations_to_markdown(records: list[AISystemRecord]) -> str:
+    """Return a markdown ``## Explanations and Recommendations`` section."""
+    from aigov.core.explainer import explain
+
+    if not records:
+        return ""
+
+    buf = StringIO()
+    w = buf.write
+    w("## Explanations and Recommendations\n\n")
+    w(f"> {_AUTOMATED_SIGNAL_DISCLAIMER}\n\n")
+
+    for rec in records:
+        ex = explain(rec)
+        w(f"### {rec.name}  \n")
+        w(f"*priority: **{ex.priority}** · location: `{rec.source_location}`*\n\n")
+        w(f"**Summary:** {ex.summary}\n\n")
+        if ex.risk_factors:
+            w("**Risk factors:**\n\n")
+            for f in ex.risk_factors:
+                w(f"- {f}\n")
+            w("\n")
+        if ex.recommended_actions:
+            w("**Recommended actions:**\n\n")
+            for a in ex.recommended_actions:
+                w(f"- {a}\n")
+            w("\n")
+    return buf.getvalue()
+
+
+def explanations_to_dict_list(records: list[AISystemRecord]) -> list[dict]:
+    """Return one explanation dict per record, suitable for JSON output."""
+    from aigov.core.explainer import explain
+
+    out: list[dict] = []
+    for rec in records:
+        ex = explain(rec)
+        d = ex.to_dict()
+        d["record_id"] = rec.id
+        d["record_name"] = rec.name
+        out.append(d)
+    return out

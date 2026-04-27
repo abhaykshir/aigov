@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 _SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json"
 _TOOL_NAME = "aigov"
-_TOOL_VERSION = "0.2.1"
+_TOOL_VERSION = "0.4.0"
 _INFORMATION_URI = "https://github.com/abhaykshir/aigov"
 
 _RULES: list[dict] = [

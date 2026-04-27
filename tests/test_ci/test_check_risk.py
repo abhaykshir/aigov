@@ -261,6 +261,57 @@ class TestCheckRiskAllowlist:
         f = _results_file(tmp_path, [finding])
         assert main([f, "--fail-on", "high_risk"]) == 1
 
+    def test_fail_on_risk_score_triggers(self, tmp_path):
+        finding = {
+            "id": "x",
+            "name": "ScoredHigh",
+            "risk_classification": "minimal_risk",
+            "source_location": "src/x.py:1",
+            "risk_score": 92,
+            "tags": {},
+        }
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on-risk-score", "80"]) == 1
+
+    def test_fail_on_risk_score_below_threshold_passes(self, tmp_path):
+        finding = {
+            "id": "x", "name": "Mid", "risk_classification": "minimal_risk",
+            "source_location": "", "risk_score": 50, "tags": {},
+        }
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on-risk-score", "80"]) == 0
+
+    def test_fail_on_exposure_triggers(self, tmp_path):
+        finding = {
+            "id": "x", "name": "PublicAPI",
+            "risk_classification": "minimal_risk",
+            "source_location": "src/x.py",
+            "tags": {"risk_context": json.dumps({"exposure": "public_api"})},
+        }
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on-exposure", "public_api"]) == 1
+
+    def test_fail_on_data_pii_triggers(self, tmp_path):
+        finding = {
+            "id": "x", "name": "PIIService",
+            "risk_classification": "minimal_risk",
+            "source_location": "src/x.py",
+            "tags": {"risk_context": json.dumps({"data_sensitivity": ["pii"]})},
+        }
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on-data", "pii,financial"]) == 1
+
+    def test_allowlisted_record_skips_score_threshold(self, tmp_path):
+        finding = {
+            "id": "x", "name": "ApprovedScored",
+            "risk_classification": "minimal_risk",
+            "source_location": "src/x.py",
+            "risk_score": 95,
+            "tags": {"allowlisted": "true", "allowlist_reason": "ok"},
+        }
+        f = _results_file(tmp_path, [finding])
+        assert main([f, "--fail-on-risk-score", "80"]) == 0
+
     def test_allowlisted_missing_reason_prints_placeholder(self, tmp_path, capsys):
         """When the reason tag is missing, the suppression line still names the record."""
         finding = _finding(

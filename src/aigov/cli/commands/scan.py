@@ -1,6 +1,7 @@
 """`aigov scan` command — discover AI systems in the given paths."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -75,6 +76,21 @@ def scan_command(
             "interaction type). Implies --classify."
         ),
     ),
+    policy: Optional[str] = typer.Option(
+        None, "--policy",
+        help=(
+            "Path to a .aigov-policy.yaml file. Each matching policy with "
+            "action=fail causes a non-zero exit; action=warn prints a notice. "
+            "Implies --classify."
+        ),
+    ),
+    explain_findings: bool = typer.Option(
+        False, "--explain",
+        help=(
+            "Print actionable explanations and recommendations for each "
+            "finding. Implies --classify."
+        ),
+    ),
 ) -> None:
     """Discover AI systems in the specified paths."""
     from aigov.core.engine import ScanEngine, classify_results
@@ -86,7 +102,7 @@ def scan_command(
         write_output,
     )
 
-    if do_gaps or do_docs or with_risk:
+    if do_gaps or do_docs or with_risk or policy or explain_findings:
         do_classify = True
 
     targets = paths or ["."]
@@ -138,7 +154,13 @@ def scan_command(
         result._compute_summaries()
 
     if output == "json":
-        content = to_json(result)
+        if explain_findings:
+            from aigov.core.reporter import explanations_to_dict_list
+            payload = json.loads(to_json(result))
+            payload["explanations"] = explanations_to_dict_list(result.records)
+            content = json.dumps(payload, indent=2, ensure_ascii=False)
+        else:
+            content = to_json(result)
         if out_file:
             write_output(content, out_file)
             console.print(f"[green]JSON report written to {out_file}[/green]")
@@ -147,6 +169,9 @@ def scan_command(
 
     elif output == "markdown":
         content = to_markdown(result)
+        if explain_findings:
+            from aigov.core.reporter import explanations_to_markdown
+            content += "\n---\n\n" + explanations_to_markdown(result.records)
         if out_file:
             write_output(content, out_file)
             console.print(f"[green]Markdown report written to {out_file}[/green]")
@@ -203,3 +228,15 @@ def scan_command(
         console.print(f"\n[bold green]Compliance documents written to[/bold green] {docs_dir}/")
         for path in created:
             console.print(f"  [dim]{path}[/dim]")
+
+    if explain_findings:
+        from aigov.core.reporter import print_explanations
+        print_explanations(result.records, console=console)
+
+    if policy:
+        from aigov.core.policy import evaluate_policies
+        from aigov.core.reporter import print_policy_result
+        pol_result = evaluate_policies(result.records, Path(policy))
+        print_policy_result(pol_result, console=console)
+        if pol_result.has_failures:
+            raise typer.Exit(code=1)
