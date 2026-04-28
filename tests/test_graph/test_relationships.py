@@ -77,6 +77,48 @@ class TestSharedConfig:
         edges = _by_relationship(detect_relationships([a, b]), "shared_config")
         assert edges == []
 
+    def test_api_key_evidence_creates_shared_config_between_co_located_services(self):
+        """An api_keys evidence record at hiring/.env ties together every AI
+        service in hiring/. Confirms the v0.5 evidence-based path."""
+        api_key_evidence = _record(
+            "ev",
+            name="OpenAI API Key detected",
+            provider="OpenAI",
+            source_location="hiring/.env:3",
+        )
+        screener = _record("a", source_location="hiring/screener.py:1")
+        ranker = _record("b", source_location="hiring/ranker.py:1")
+        edges = detect_relationships(
+            [screener, ranker], evidence_records=[api_key_evidence]
+        )
+        shared = [e for e in edges if e.relationship == "shared_config"]
+        assert len(shared) == 1
+        assert shared[0].confidence == 0.9
+        assert "OpenAI" in shared[0].evidence
+        assert ".env" in shared[0].evidence
+
+    def test_api_key_evidence_does_not_link_services_in_different_dirs(self):
+        api_key_evidence = _record(
+            "ev",
+            name="key",
+            provider="OpenAI",
+            source_location="hiring/.env:1",
+        )
+        screener = _record("a", source_location="hiring/screener.py:1")
+        scorer = _record("b", source_location="analytics/scorer.py:1")
+        edges = detect_relationships(
+            [screener, scorer], evidence_records=[api_key_evidence]
+        )
+        shared = [e for e in edges if e.relationship == "shared_config"]
+        assert shared == []
+
+    def test_evidence_records_default_empty(self):
+        """The new keyword arg is optional — single-arg calls still work."""
+        a = _record("a", source_location="x/.mcp.json")
+        b = _record("b", source_location="x/.mcp.json")
+        edges = detect_relationships([a, b])
+        assert any(e.relationship == "shared_config" for e in edges)
+
 
 # ---------------------------------------------------------------------------
 # shared_provider_key

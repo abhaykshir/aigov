@@ -74,32 +74,70 @@ def _directory(loc: str) -> str:
 # Detectors — each takes the full record list and returns edges
 # ---------------------------------------------------------------------------
 
-def _shared_config_edges(records: list[AISystemRecord]) -> list[GraphEdge]:
-    """Two records that point at the same .env / .mcp.json get a shared_config edge.
+def _shared_config_edges(
+    records: list[AISystemRecord],
+    evidence_records: list[AISystemRecord] | None = None,
+) -> list[GraphEdge]:
+    """Two records that share a config file get a ``shared_config`` edge.
 
-    Records *whose own source_location is* one of those files (e.g. an API-key
-    finding inside `.env`) participate too: the file *is* the config they share.
+    Two paths produce these edges, both at confidence 0.9:
+
+    1. **Direct co-residence.** Two records whose own ``source_location``
+       is a recognised config file (``.env`` / ``.mcp.json``) — e.g. two
+       MCP servers declared in the same ``.mcp.json``. Evidence:
+       *"Both found in <path>"*.
+    2. **API-key evidence (new in v0.5).** An ``evidence_record`` (typically
+       a ``code.api_keys`` finding inside an ``.env``) lives in directory
+       ``D``. Every pair of AI service records whose ``source_location``
+       sits in ``D`` gets a ``shared_config`` edge. Evidence: *"Both in
+       directory containing <env file> with detected <provider> API key"*.
     """
+    evidence_records = evidence_records or []
     edges: list[GraphEdge] = []
+
+    # Path 1 — direct co-residence (e.g. multiple MCP servers in one .mcp.json).
     by_path: dict[str, list[AISystemRecord]] = {}
     for record in records:
         norm = _to_posix(record.source_location)
-        # Group records by the resolved file path itself when it points at a
-        # config file (env / mcp), since multiple findings often live in the
-        # same .env or .mcp.json.
         if _filename(record.source_location).lower() in _SHARED_CONFIG_FILES:
             by_path.setdefault(norm, []).append(record)
 
     for path, group in by_path.items():
         for a, b in combinations(group, 2):
-            evidence = f"Both found in {path}"
             edges.append(GraphEdge(
                 source_id=a.id,
                 target_id=b.id,
                 relationship="shared_config",
                 confidence=0.9,
-                evidence=evidence,
+                evidence=f"Both found in {path}",
             ))
+
+    # Path 2 — evidence-driven edges. An API key in dir D ties together every
+    # pair of AI services that live in D. The api_keys scanner records the
+    # *config file* the key was discovered in (``.env``), and its provider
+    # (e.g. ``OpenAI``) — both useful in the evidence sentence.
+    for ev in evidence_records:
+        ev_dir = _directory(ev.source_location)
+        if not ev_dir:
+            continue
+        ev_filename = _filename(ev.source_location) or "config file"
+        co_located = [
+            r for r in records if _directory(r.source_location) == ev_dir
+        ]
+        if len(co_located) < 2:
+            continue
+        for a, b in combinations(co_located, 2):
+            edges.append(GraphEdge(
+                source_id=a.id,
+                target_id=b.id,
+                relationship="shared_config",
+                confidence=0.9,
+                evidence=(
+                    f"Both in directory containing {ev_filename} with "
+                    f"detected {ev.provider} API key"
+                ),
+            ))
+
     return edges
 
 
@@ -314,8 +352,8 @@ def _shared_terraform_module_edges(records: list[AISystemRecord]) -> list[GraphE
 # Public entry point
 # ---------------------------------------------------------------------------
 
-_DETECTORS = (
-    _shared_config_edges,
+# Detectors that only need the node-record list.
+_NODE_ONLY_DETECTORS = (
     _shared_provider_key_edges,
     _mcp_connection_edges,
     _import_chain_edges,
@@ -324,18 +362,36 @@ _DETECTORS = (
 )
 
 
-def detect_relationships(records: list[AISystemRecord]) -> list[GraphEdge]:
+def detect_relationships(
+    records: list[AISystemRecord],
+    evidence_records: list[AISystemRecord] | None = None,
+) -> list[GraphEdge]:
     """Run every detector and return a deduplicated list of edges.
+
+    *records* are the AI-system records that become graph nodes. *evidence_records*
+    (optional) are records that should *not* become nodes themselves, but whose
+    presence strengthens edges between other records — for example, a
+    ``code.api_keys`` finding inside an ``.env`` file ties together every AI
+    service that lives in that directory.
 
     When the same (source, target, relationship) triple is produced more than
     once, the highest-confidence variant wins and its evidence is kept.
     """
     by_key: dict[tuple[str, str, str], GraphEdge] = {}
-    for detector in _DETECTORS:
+
+    # The shared_config detector takes both lists; everything else only sees
+    # the node records.
+    for edge in _shared_config_edges(records, evidence_records):
+        existing = by_key.get(edge.key)
+        if existing is None or edge.confidence > existing.confidence:
+            by_key[edge.key] = edge
+
+    for detector in _NODE_ONLY_DETECTORS:
         for edge in detector(records):
             existing = by_key.get(edge.key)
             if existing is None or edge.confidence > existing.confidence:
                 by_key[edge.key] = edge
+
     # Stable sort: by relationship, then source, then target — keeps test
     # assertions deterministic across runs.
     return sorted(by_key.values(), key=lambda e: (e.relationship, e.source_id, e.target_id))

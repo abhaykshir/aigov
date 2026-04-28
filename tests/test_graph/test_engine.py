@@ -144,6 +144,44 @@ def test_no_credential_tags_in_graph(graph):
         assert "key_type" not in node.tags
 
 
+def test_api_key_findings_are_not_nodes(graph):
+    """code.api_keys records describe shared credentials, not AI systems —
+    they must not appear as nodes."""
+    for node in graph.nodes:
+        loc = node.source_location.replace("\\", "/")
+        # Strip the trailing :NN line suffix so we look at the file path.
+        path = loc.split(":")[0] if ":" in loc and not loc.startswith("arn:") else loc
+        leaf = path.rsplit("/", 1)[-1]
+        assert not leaf.startswith(".env"), (
+            f".env credential record leaked into nodes: {node.label} @ {node.source_location}"
+        )
+
+
+def test_api_key_evidence_strengthens_hiring_shared_config(graph):
+    """The hiring/ subdir ships an .env with an OpenAI API key plus two .py
+    files; the evidence-based shared_config path should pair them."""
+    by_id = {n.id: n for n in graph.nodes}
+    api_key_edges = [
+        e for e in graph.edges
+        if e.relationship == "shared_config" and "API key" in e.evidence
+    ]
+    assert api_key_edges, "no api-key-evidence shared_config edges fired at all"
+
+    def _dir_contains(edge, fragment: str) -> bool:
+        a = by_id.get(edge.source_id)
+        b = by_id.get(edge.target_id)
+        if not (a and b):
+            return False
+        a_loc = a.source_location.replace("\\", "/").lower()
+        b_loc = b.source_location.replace("\\", "/").lower()
+        return f"/{fragment}/" in a_loc and f"/{fragment}/" in b_loc
+
+    assert any(_dir_contains(e, "hiring") for e in api_key_edges), (
+        "expected an api-key shared_config edge between two hiring/ records; "
+        f"got: {[(by_id[e.source_id].label, by_id[e.target_id].label) for e in api_key_edges]}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Graph round-trips through to_dict / from_dict
 # ---------------------------------------------------------------------------

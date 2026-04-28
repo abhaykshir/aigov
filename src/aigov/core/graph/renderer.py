@@ -202,13 +202,19 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   #detail-panel ul li {{ margin-bottom: 4px; }}
   #detail-panel .edge-row {{
-    padding: 8px 10px;
-    margin-bottom: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
     background: var(--bg-elev-2);
     border-radius: 4px;
     border-left: 3px solid var(--accent);
     font-size: 12px;
-    line-height: 1.45;
+    line-height: 1.5;
+  }}
+  #detail-panel .edge-header {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
   }}
   #detail-panel .edge-row .rel {{
     color: var(--accent);
@@ -216,12 +222,21 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   #detail-panel .edge-row .conf {{
     color: var(--text-dim);
-    margin-left: 6px;
+    background: var(--bg-elev);
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+  }}
+  #detail-panel .edge-row .target {{
+    color: var(--text);
+    margin-bottom: 4px;
   }}
   #detail-panel .edge-row .ev {{
     color: var(--text-dim);
     margin-top: 4px;
     font-style: italic;
+    font-size: 11.5px;
   }}
   #legend {{
     position: absolute;
@@ -330,6 +345,47 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   #tooltip .name {{ font-weight: 600; color: var(--text); }}
   #tooltip .row {{ color: var(--text-dim); margin-top: 3px; }}
+  /* Filter toolbar */
+  #filter-toolbar {{
+    position: absolute;
+    top: 70px;
+    left: 18px;
+    display: flex;
+    gap: 6px;
+    z-index: 5;
+  }}
+  .filter-btn {{
+    background: var(--bg-elev);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 11px;
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }}
+  .filter-btn:hover {{
+    background: var(--bg-elev-2);
+    color: var(--text);
+  }}
+  .filter-btn.active {{
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+  }}
+  /* Filter-driven visibility — fade out, animate */
+  .node, .link, .link-hit, .link-label {{
+    transition: opacity 220ms ease;
+  }}
+  .node.hidden, .link.hidden, .link-label.hidden {{
+    opacity: 0;
+    pointer-events: none;
+  }}
+  .link-hit.hidden {{
+    pointer-events: none;
+  }}
 </style>
 </head>
 <body>
@@ -341,6 +397,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 </header>
 <main>
   <svg id="graph" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="filter-toolbar">
+    <button id="filter-high-risk" class="filter-btn" type="button" title="Hide nodes with risk_score &lt; 60">High risk only</button>
+    <button id="filter-weak-edges" class="filter-btn" type="button" title="Hide edges with confidence &lt; 0.7">Hide weak edges</button>
+    <button id="filter-reset" class="filter-btn" type="button" title="Reset to full graph">Show all</button>
+  </div>
   <aside id="detail-panel">
     <p class="placeholder">Click any node to see its details, risk drivers, and the relationships that connect it to other systems. Scroll to zoom · drag empty space to pan.</p>
   </aside>
@@ -525,11 +586,33 @@ linkHit
   .on('mouseenter', (event, d) => {{
     link.filter(ld => ld === d).classed('hover', true);
     linkLabel.filter(ld => ld === d).classed('visible', true);
+    tooltip
+      .style('opacity', 1)
+      .html(edgeTooltipHtml(d));
+    moveTooltip(event);
   }})
+  .on('mousemove', moveTooltip)
   .on('mouseleave', (event, d) => {{
     link.filter(ld => ld === d).classed('hover', false);
     linkLabel.filter(ld => ld === d).classed('visible', false);
+    tooltip.style('opacity', 0);
   }});
+
+function edgeTooltipHtml(e) {{
+  const sId = (e.source && e.source.id) || e.source_id;
+  const tId = (e.target && e.target.id) || e.target_id;
+  const a = DATA.nodes.find(n => n.id === sId);
+  const b = DATA.nodes.find(n => n.id === tId);
+  const aLabel = a ? (NODE_LABELS.get(a.id) || a.label) : sId;
+  const bLabel = b ? (NODE_LABELS.get(b.id) || b.label) : tId;
+  const conf = Math.round(e.confidence * 100);
+  return [
+    `<div class="name">${{escapeHtml(e.relationship)}}</div>`,
+    `<div class="row">confidence: ${{conf}}%</div>`,
+    `<div class="row">${{escapeHtml(aLabel)}} ↔ ${{escapeHtml(bLabel)}}</div>`,
+    `<div class="row" style="margin-top:5px;color:var(--text);">${{escapeHtml(e.evidence)}}</div>`,
+  ].join('');
+}}
 
 const node = zoomLayer.append('g').selectAll('g')
   .data(DATA.nodes, d => d.id)
@@ -627,12 +710,15 @@ function detailHtml(d) {{
     const tId = (e.target && e.target.id) || e.target_id;
     const otherId = sId === d.id ? tId : sId;
     const other = DATA.nodes.find(n => n.id === otherId);
-    const otherLabel = other ? other.label : otherId;
+    const otherLabel = other ? (NODE_LABELS.get(other.id) || other.label) : otherId;
+    const conf = Math.round(e.confidence * 100);
     return `
       <div class="edge-row">
-        <span class="rel">${{escapeHtml(e.relationship)}}</span>
-        <span class="conf">conf ${{e.confidence.toFixed(2)}}</span>
-        — connects to <strong>${{escapeHtml(otherLabel)}}</strong>
+        <div class="edge-header">
+          <span class="rel">${{escapeHtml(e.relationship)}}</span>
+          <span class="conf">${{conf}}%</span>
+        </div>
+        <div class="target">→ <strong>${{escapeHtml(otherLabel)}}</strong></div>
         <div class="ev">${{escapeHtml(e.evidence)}}</div>
       </div>`;
   }}).join('');
@@ -704,6 +790,58 @@ simulation.on('end', () => {{
   if (_autoFitDone) return;
   _autoFitDone = true;
   fitToView();
+}});
+
+// ----- Filter toolbar -----
+const filterState = {{ highRiskOnly: false, hideWeakEdges: false }};
+
+function isNodeHidden(d) {{
+  if (!filterState.highRiskOnly) return false;
+  return d.risk_score == null || d.risk_score < 60;
+}}
+
+function applyFilters() {{
+  // Pre-compute the visible-node id set so edges can hide both for confidence
+  // *and* because one of their endpoints disappeared.
+  const visibleNodeIds = new Set(
+    DATA.nodes.filter(d => !isNodeHidden(d)).map(n => n.id)
+  );
+  function edgeHidden(e) {{
+    const sId = (e.source && e.source.id) || e.source_id;
+    const tId = (e.target && e.target.id) || e.target_id;
+    if (!visibleNodeIds.has(sId) || !visibleNodeIds.has(tId)) return true;
+    if (filterState.hideWeakEdges && e.confidence < 0.7) return true;
+    return false;
+  }}
+  node.classed('hidden', isNodeHidden);
+  link.classed('hidden', edgeHidden);
+  linkHit.classed('hidden', edgeHidden);
+  linkLabel.classed('hidden', edgeHidden);
+}}
+
+function setBtnState(btnId, active) {{
+  const el = document.getElementById(btnId);
+  if (el) el.classList.toggle('active', active);
+}}
+
+document.getElementById('filter-high-risk').addEventListener('click', () => {{
+  filterState.highRiskOnly = !filterState.highRiskOnly;
+  setBtnState('filter-high-risk', filterState.highRiskOnly);
+  applyFilters();
+}});
+
+document.getElementById('filter-weak-edges').addEventListener('click', () => {{
+  filterState.hideWeakEdges = !filterState.hideWeakEdges;
+  setBtnState('filter-weak-edges', filterState.hideWeakEdges);
+  applyFilters();
+}});
+
+document.getElementById('filter-reset').addEventListener('click', () => {{
+  filterState.highRiskOnly = false;
+  filterState.hideWeakEdges = false;
+  setBtnState('filter-high-risk', false);
+  setBtnState('filter-weak-edges', false);
+  applyFilters();
 }});
 
 function fitToView() {{

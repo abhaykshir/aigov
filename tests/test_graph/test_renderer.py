@@ -91,6 +91,40 @@ class TestHTMLRenderer:
         assert "<script src=" not in html
         assert "<link rel=\"stylesheet\"" not in html
 
+    def test_filter_toolbar_present(self):
+        """All three filter buttons must render in the page."""
+        html = to_html(_example_graph())
+        assert 'id="filter-high-risk"' in html
+        assert 'id="filter-weak-edges"' in html
+        assert 'id="filter-reset"' in html
+        assert "High risk only" in html
+        assert "Hide weak edges" in html
+        assert "Show all" in html
+
+    def test_filter_state_logic_embedded(self):
+        """The runtime state object the filter buttons drive must ship."""
+        html = to_html(_example_graph())
+        assert "filterState" in html
+        assert "highRiskOnly" in html
+        assert "hideWeakEdges" in html
+        assert "applyFilters" in html
+
+    def test_edge_tooltip_logic_embedded(self):
+        """Hovering an edge should populate the tooltip with relationship,
+        confidence percent, and evidence."""
+        html = to_html(_example_graph())
+        assert "edgeTooltipHtml" in html
+        # The tooltip composes confidence as a percentage — confirm the math
+        # is in the script.
+        assert "e.confidence * 100" in html
+        # Evidence must reach the tooltip body.
+        assert "e.evidence" in html
+
+    def test_detail_panel_uses_percent_confidence(self):
+        html = to_html(_example_graph())
+        # Detail-panel edge rows multiply confidence by 100 and round.
+        assert "Math.round(e.confidence * 100)" in html
+
     def test_embeds_every_node_label(self):
         graph = _example_graph()
         html = to_html(graph)
