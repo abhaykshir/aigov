@@ -1,10 +1,10 @@
 """Graph engine — convert a record list into a complete :class:`AISystemGraph`."""
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Optional
 
 from aigov.core.graph.relationships import detect_relationships
-from aigov.core.graph.schema import AISystemGraph, GraphNode
+from aigov.core.graph.schema import AISystemGraph, GraphEdge, GraphNode
 from aigov.core.metadata import build_metadata
 from aigov.core.models import AISystemRecord
 
@@ -20,6 +20,7 @@ _EVIDENCE_ONLY_SCANNERS = frozenset({"code.api_keys"})
 def build_graph(
     records: list[AISystemRecord],
     scan_paths: list[str],
+    min_risk_score: Optional[int] = None,
 ) -> AISystemGraph:
     """Return a graph whose nodes mirror *records* and edges come from the
     relationship detectors.
@@ -30,6 +31,12 @@ def build_graph(
     ``shared_config`` edges between the AI services that live in the same
     directory.
 
+    When *min_risk_score* is set, nodes whose ``risk_score`` is below the
+    threshold are dropped. Unscored nodes (``risk_score is None``) are kept
+    only when they have an edge to a surviving scored node — they may be
+    important connections (e.g. an unscored MCP server linking two critical
+    services). Edges are kept only when both endpoints survive.
+
     The graph carries its own metadata (tool name, version, generated_at,
     scan_paths) so renderers — and any downstream consumer — don't need to
     receive that context separately.
@@ -38,6 +45,9 @@ def build_graph(
     nodes = [_record_to_node(r) for r in node_records]
     edges = detect_relationships(node_records, evidence_records=evidence_records)
 
+    if min_risk_score is not None:
+        nodes, edges = _filter_by_risk(nodes, edges, min_risk_score)
+
     base_meta = build_metadata()
     metadata = {
         **base_meta,
@@ -45,7 +55,40 @@ def build_graph(
         "node_count": len(nodes),
         "edge_count": len(edges),
     }
+    if min_risk_score is not None:
+        metadata["min_risk_score"] = min_risk_score
     return AISystemGraph(nodes=nodes, edges=edges, metadata=metadata)
+
+
+def _filter_by_risk(
+    nodes: list[GraphNode],
+    edges: list[GraphEdge],
+    threshold: int,
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """Drop low-risk nodes; keep unscored nodes only if linked to a survivor.
+
+    A node survives the filter if its ``risk_score`` is >= *threshold*.
+    Unscored nodes (``risk_score is None``) get a second chance: they survive
+    if at least one edge connects them to a node that survived on its own.
+    Edges are then filtered to those whose endpoints both survive.
+    """
+    scored_survivors = {n.id for n in nodes if n.risk_score is not None and n.risk_score >= threshold}
+    unscored = {n.id for n in nodes if n.risk_score is None}
+
+    rescued: set[str] = set()
+    for edge in edges:
+        if edge.source_id in scored_survivors and edge.target_id in unscored:
+            rescued.add(edge.target_id)
+        elif edge.target_id in scored_survivors and edge.source_id in unscored:
+            rescued.add(edge.source_id)
+
+    surviving_ids = scored_survivors | rescued
+    surviving_nodes = [n for n in nodes if n.id in surviving_ids]
+    surviving_edges = [
+        e for e in edges
+        if e.source_id in surviving_ids and e.target_id in surviving_ids
+    ]
+    return surviving_nodes, surviving_edges
 
 
 def _split(
