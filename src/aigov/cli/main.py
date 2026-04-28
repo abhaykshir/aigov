@@ -17,6 +17,7 @@ from aigov.cli.commands.classify import classify_command
 from aigov.cli.commands.docs import docs_command
 from aigov.cli.commands.export_cmd import export_command
 from aigov.cli.commands.gaps import gaps_command
+from aigov.cli.commands.graph import graph_command
 from aigov.cli.commands.hooks import app as _hooks_app
 from aigov.cli.commands.scan import scan_command
 from aigov.version import __version__
@@ -32,6 +33,7 @@ app.command("classify")(classify_command)
 app.command("gaps")(gaps_command)
 app.command("docs")(docs_command)
 app.command("export")(export_command)
+app.command("graph")(graph_command)
 
 # Command groups.
 app.add_typer(_hooks_app, name="hooks")

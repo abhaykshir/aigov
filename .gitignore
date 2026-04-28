@@ -11,6 +11,10 @@ wheels/
 
 # Environment / secrets
 .env
+# Exception: test-fixture .env files must ship with the repo so the graph /
+# scanner tests behave identically in CI. The values inside are intentionally
+# fake (sk-fake-*) — see tests/fixtures/sample_graph_project/*/.env.
+!tests/fixtures/**/.env
 
 # Tool caches
 .pytest_cache/

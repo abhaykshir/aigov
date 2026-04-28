@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vector-db": {
+      "command": "uvx",
+      "args": ["mcp-server-pinecone", "--index", "support-tickets"],
+      "env": {
+        "PINECONE_API_KEY": "FAKE_PINECONE_KEY_FIXTURE"
+      }
+    }
+  }
+}
