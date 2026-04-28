@@ -43,9 +43,7 @@ aigov-check = "aigov.cli.check_risk:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-# Vendored D3.js — inlined into the graph HTML so reviewers without internet
-# can still open the file.
-"aigov.core.graph._assets" = ["*.js"]
+aigov = ["**/*.yaml", "**/*.yml", "**/*.js"]
 
 [tool.setuptools.dynamic]
 version = {attr = "aigov.version.__version__"}
