@@ -55,7 +55,7 @@ def _now() -> datetime:
 
 def _record_id(location: str, resource_type: str, resource_name: str) -> str:
     raw = f"infra.terraform|{location}|{resource_type}|{resource_name}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _classify_resource(resource_type: str) -> tuple[str, AISystemType, str] | None:

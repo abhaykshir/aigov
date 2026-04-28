@@ -141,7 +141,7 @@ def _resolve_library(module_name: str) -> _LibraryDef | None:
 
 def _record_id(file_path: str, lineno: int, provider: str) -> str:
     raw = f"{file_path}:{lineno}:{provider}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _extract_names(tree: ast.AST) -> tuple[list[str], list[str]]:

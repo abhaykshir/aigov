@@ -82,7 +82,7 @@ def _now() -> datetime:
 
 def _record_id(source_scanner: str, location: str, name: str, provider: str, system_type: str) -> str:
     raw = f"{source_scanner}|{location}|{name}|{provider}|{system_type}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _match_image(image: str) -> _ImageDef | None:

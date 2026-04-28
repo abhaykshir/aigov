@@ -163,7 +163,7 @@ def _env_var_names(env_dict: Any) -> list[str]:
 
 def _record_id(source_location: str, server_name: str) -> str:
     raw = f"{source_location}:{server_name}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _build_record(

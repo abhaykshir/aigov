@@ -64,7 +64,7 @@ def _now() -> datetime:
 
 def _record_id(location: str, name: str, provider: str, system_type: str, suffix: str = "") -> str:
     raw = f"infra.kubernetes|{location}|{name}|{provider}|{system_type}|{suffix}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _match_image(image: str) -> tuple[str, AISystemType] | None:

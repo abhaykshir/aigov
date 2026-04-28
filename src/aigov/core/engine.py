@@ -67,7 +67,7 @@ def _stable_id(record: AISystemRecord) -> str:
         record.provider,
         record.system_type.value,
     ])
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------------------
