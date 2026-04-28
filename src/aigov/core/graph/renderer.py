@@ -506,7 +506,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <h1>aigov — AI System Graph</h1>
   <span class="meta">{version}</span>
-  <span class="meta">{timestamp}</span>
+  <span class="meta" id="header-timestamp" data-iso="{timestamp}">{timestamp}</span>
   <span class="meta">scanned: {scan_paths}</span>
 </header>
 <div id="summary-bar"></div>
@@ -651,6 +651,24 @@ const NODE_LABELS = (function buildLabels(nodes) {{
   }}
   return out;
 }})(DATA.nodes);
+
+// ----- Header timestamp — format the raw ISO into a human-readable date -----
+// The server-side renderer drops the raw ISO string into the header so the
+// page degrades gracefully when JS is disabled. Once the page boots we
+// rewrite it as e.g. "April 28, 2026" via toLocaleDateString.
+(function formatHeaderTimestamp() {{
+  const el = document.getElementById('header-timestamp');
+  if (!el) return;
+  const iso = el.getAttribute('data-iso') || el.textContent || '';
+  if (!iso) return;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return;
+  el.textContent = parsed.toLocaleDateString('en-US', {{
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }});
+}})();
 
 // ----- Insights — populate the summary bar and prepare per-node lookups -----
 const INSIGHTS = DATA.insights || {{ node_insights: {{}}, isolated_nodes: [], risk_clusters: [] }};

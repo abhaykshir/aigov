@@ -204,6 +204,20 @@ class TestHTMLRenderer:
         assert "0.4.0" in html
         assert "hiring" in html
 
+    def test_header_timestamp_formatted_via_js(self):
+        """The header timestamp ships as raw ISO inside ``data-iso`` (so the
+        page degrades gracefully when JS is off) and is rewritten on load
+        with ``toLocaleDateString('en-US', { year, month: 'long', day })``
+        — yielding e.g. "April 28, 2026" instead of the raw ISO string."""
+        html = to_html(_example_graph())
+        # The span keeps the raw ISO as a data attribute and as fallback text.
+        assert 'id="header-timestamp"' in html
+        assert 'data-iso="2026-04-27T00:00:00+00:00"' in html
+        # The rewriter ships and uses the long-month locale options.
+        assert "formatHeaderTimestamp" in html
+        assert "toLocaleDateString('en-US'" in html
+        assert "month: 'long'" in html
+
     def test_disclaimer_present(self):
         html = to_html(_example_graph())
         assert "not legal advice" in html.lower() or "automated signal" in html.lower()
