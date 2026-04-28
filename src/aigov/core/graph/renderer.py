@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from importlib.resources import files
-from typing import Any
+from typing import Any, Optional
 
 from aigov.core.graph.schema import AISystemGraph
 
@@ -43,13 +43,24 @@ def to_json(graph: AISystemGraph, *, indent: int = 2) -> str:
     return json.dumps(graph.to_dict(), indent=indent, ensure_ascii=False)
 
 
-def to_html(graph: AISystemGraph) -> str:
+def to_html(graph: AISystemGraph, insights: Optional[Any] = None) -> str:
     """Return a self-contained HTML document visualising *graph*.
 
     The page renders a force-directed D3 graph on the left, with a sticky
     detail panel on the right that fills in when a node is clicked.
+
+    *insights* (optional): a :class:`aigov.core.graph.insights.GraphInsights`
+    instance. When provided, the page renders a summary bar at the top, a
+    Blast Radius section in the per-node detail panel, and a pulsing glow on
+    isolated nodes. When omitted, insights are computed on the fly so any
+    caller — direct API user, CLI, test harness — gets a consistent view.
     """
-    payload = json.dumps(graph.to_dict(), ensure_ascii=False)
+    if insights is None:
+        from aigov.core.graph.insights import compute_insights
+        insights = compute_insights(graph)
+    graph_dict = graph.to_dict()
+    graph_dict["insights"] = insights.to_dict()
+    payload = json.dumps(graph_dict, ensure_ascii=False)
     metadata = graph.metadata or {}
     timestamp = str(metadata.get("generated_at") or "")
     scan_paths = ", ".join(metadata.get("scan_paths") or [])
@@ -123,6 +134,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     height: 100%;
     overflow: hidden;
   }}
+  body {{
+    display: flex;
+    flex-direction: column;
+  }}
+  header, #summary-bar {{ flex: 0 0 auto; }}
   header {{
     display: flex;
     align-items: baseline;
@@ -144,7 +160,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   main {{
     display: grid;
     grid-template-columns: 1fr 360px;
-    height: calc(100% - 51px);
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
   }}
   #graph {{
     width: 100%;
@@ -354,10 +372,10 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   #tooltip .name {{ font-weight: 600; color: var(--text); }}
   #tooltip .row {{ color: var(--text-dim); margin-top: 3px; }}
-  /* Filter toolbar */
+  /* Filter toolbar — anchored inside main, which is position:relative. */
   #filter-toolbar {{
     position: absolute;
-    top: 70px;
+    top: 18px;
     left: 18px;
     display: flex;
     gap: 6px;
@@ -395,6 +413,93 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   .link-hit.hidden {{
     pointer-events: none;
   }}
+  /* Summary bar (graph-level insights) */
+  #summary-bar {{
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev);
+    color: var(--text-dim);
+    font-size: 12px;
+  }}
+  #summary-bar .stat {{
+    color: var(--text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }}
+  #summary-bar .shadow-warning {{
+    margin-left: auto;
+    color: var(--medium);
+    font-weight: 600;
+  }}
+  /* Pulsing glow on isolated nodes — they're potential shadow AI and
+     should attract a reviewer's eye even at rest. */
+  .node.isolated circle {{
+    animation: aigov-isolated-pulse 2.4s ease-in-out infinite;
+  }}
+  @keyframes aigov-isolated-pulse {{
+    0%, 100% {{
+      stroke: var(--medium);
+      stroke-width: 2px;
+      stroke-opacity: 0.6;
+    }}
+    50% {{
+      stroke: var(--medium);
+      stroke-width: 5px;
+      stroke-opacity: 1;
+    }}
+  }}
+  /* Blast radius section in the detail panel */
+  #detail-panel .blast-radius {{
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 5px;
+    background: var(--bg-elev-2);
+    border-left: 3px solid var(--text-dim);
+  }}
+  #detail-panel .blast-radius.critical {{ border-left-color: var(--critical); }}
+  #detail-panel .blast-radius.high     {{ border-left-color: var(--high); }}
+  #detail-panel .blast-radius.medium   {{ border-left-color: var(--medium); }}
+  #detail-panel .blast-radius.low      {{ border-left-color: var(--low); }}
+  #detail-panel .blast-radius .br-label {{
+    text-transform: uppercase;
+    font-size: 10.5px;
+    letter-spacing: 0.7px;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }}
+  #detail-panel .blast-radius .br-level {{
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }}
+  #detail-panel .blast-radius.critical .br-level {{ color: var(--critical); }}
+  #detail-panel .blast-radius.high     .br-level {{ color: var(--high); }}
+  #detail-panel .blast-radius.medium   .br-level {{ color: var(--medium); }}
+  #detail-panel .blast-radius.low      .br-level {{ color: var(--low); }}
+  #detail-panel .blast-radius .br-row {{
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    color: var(--text-dim);
+    font-size: 12px;
+  }}
+  #detail-panel .blast-radius .br-row .v {{
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }}
+  #detail-panel .blast-radius .br-warning {{
+    margin-top: 9px;
+    padding: 8px 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 11.5px;
+    line-height: 1.5;
+  }}
 </style>
 </head>
 <body>
@@ -404,6 +509,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <span class="meta">{timestamp}</span>
   <span class="meta">scanned: {scan_paths}</span>
 </header>
+<div id="summary-bar"></div>
 <main>
   <svg id="graph" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
   <div id="filter-toolbar">
@@ -546,6 +652,31 @@ const NODE_LABELS = (function buildLabels(nodes) {{
   return out;
 }})(DATA.nodes);
 
+// ----- Insights — populate the summary bar and prepare per-node lookups -----
+const INSIGHTS = DATA.insights || {{ node_insights: {{}}, isolated_nodes: [], risk_clusters: [] }};
+const NODE_INSIGHTS = INSIGHTS.node_insights || {{}};
+const ISOLATED_IDS = new Set(INSIGHTS.isolated_nodes || []);
+
+(function renderSummaryBar() {{
+  const bar = document.getElementById('summary-bar');
+  if (!bar) return;
+  const n = INSIGHTS.total_nodes || 0;
+  const e = INSIGHTS.total_edges || 0;
+  const c = (INSIGHTS.risk_clusters || []).length;
+  const i = (INSIGHTS.isolated_nodes || []).length;
+  const stats = [
+    `<span><span class="stat">${{n}}</span> AI system${{n === 1 ? '' : 's'}}</span>`,
+    `<span><span class="stat">${{e}}</span> relationship${{e === 1 ? '' : 's'}}</span>`,
+    `<span><span class="stat">${{c}}</span> cluster${{c === 1 ? '' : 's'}}</span>`,
+    `<span><span class="stat">${{i}}</span> isolated</span>`,
+  ];
+  let warning = '';
+  if (i > 0) {{
+    warning = `<span class="shadow-warning">⚠ ${{i}} isolated system${{i === 1 ? '' : 's'}} — potential shadow AI</span>`;
+  }}
+  bar.innerHTML = stats.join('') + warning;
+}})();
+
 // Link distance scales by confidence: a 0.9-confidence edge tightens the
 // pair to ~140 px, a 0.5-confidence edge lets them drift to ~200 px.
 // Slightly looser than v1 so node circles don't crowd each other.
@@ -637,7 +768,7 @@ function edgeTooltipHtml(e) {{
 const node = zoomLayer.append('g').selectAll('g')
   .data(DATA.nodes, d => d.id)
   .join('g')
-  .attr('class', 'node')
+  .attr('class', d => ISOLATED_IDS.has(d.id) ? 'node isolated' : 'node')
   .call(d3.drag()
     .on('start', (event, d) => {{
       if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -765,6 +896,29 @@ function detailHtml(d) {{
     <div class="section">
       <h3>Connections (${{incomingEdges.length}})</h3>
       ${{incomingEdges.length ? edgeRows : '<p class="placeholder">No relationships detected.</p>'}}
+    </div>
+    ${{blastRadiusHtml(d)}}`;
+}}
+
+function blastRadiusHtml(d) {{
+  const ins = NODE_INSIGHTS[d.id];
+  if (!ins) return '';
+  const level = ins.blast_radius || 'low';
+  const labels = {{ critical: 'CRITICAL', high: 'HIGH', medium: 'MEDIUM', low: 'LOW' }};
+  let warning = '';
+  if (level === 'critical' || level === 'high') {{
+    warning = `<div class="br-warning">⚠ Compromise of this system could impact `
+      + `${{ins.degree}} connected system${{ins.degree === 1 ? '' : 's'}}, `
+      + `including ${{ins.high_risk_neighbors}} high-risk system${{ins.high_risk_neighbors === 1 ? '' : 's'}}.</div>`;
+  }}
+  return `
+    <div class="blast-radius ${{level}}">
+      <div class="br-label">Blast radius</div>
+      <div class="br-level">${{labels[level] || level.toUpperCase()}}</div>
+      <div class="br-row"><span>Connected systems</span><span class="v">${{ins.degree}}</span></div>
+      <div class="br-row"><span>High-risk neighbours</span><span class="v">${{ins.high_risk_neighbors}}</span></div>
+      <div class="br-row"><span>Critical neighbours</span><span class="v">${{ins.critical_neighbors}}</span></div>
+      ${{warning}}
     </div>`;
 }}
 

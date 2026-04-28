@@ -13,6 +13,7 @@ posture as the rest of aigov.
 from __future__ import annotations
 
 from aigov.core.graph.engine import build_graph
+from aigov.core.graph.insights import GraphInsights, NodeInsight, compute_insights
 from aigov.core.graph.relationships import detect_relationships
 from aigov.core.graph.renderer import to_html, to_json
 from aigov.core.graph.schema import AISystemGraph, GraphEdge, GraphNode
@@ -20,8 +21,11 @@ from aigov.core.graph.schema import AISystemGraph, GraphEdge, GraphNode
 __all__ = [
     "AISystemGraph",
     "GraphEdge",
+    "GraphInsights",
     "GraphNode",
+    "NodeInsight",
     "build_graph",
+    "compute_insights",
     "detect_relationships",
     "to_html",
     "to_json",

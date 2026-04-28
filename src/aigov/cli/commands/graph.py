@@ -59,7 +59,7 @@ def graph_command(
         raise typer.Exit(code=1)
 
     from aigov.core.engine import ScanEngine, ScanResult, classify_results
-    from aigov.core.graph import build_graph, to_html, to_json
+    from aigov.core.graph import build_graph, compute_insights, to_html
     from aigov.core.models import AISystemRecord
     from aigov.core.risk import apply_risk
 
@@ -118,17 +118,56 @@ def graph_command(
         scanned_paths = list(scan_result.scanned_paths) or targets
 
     graph = build_graph(records, scanned_paths)
+    insights = compute_insights(graph)
 
     dest = out_file or _default_out_file(output)
     if output == "json":
-        Path(dest).write_text(to_json(graph), encoding="utf-8")
+        # Merge insights into the JSON envelope so downstream tools get the
+        # same view the HTML renderer does.
+        payload = graph.to_dict()
+        payload["insights"] = insights.to_dict()
+        Path(dest).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     else:
-        Path(dest).write_text(to_html(graph), encoding="utf-8")
+        Path(dest).write_text(to_html(graph, insights=insights), encoding="utf-8")
 
     console.print(
         f"[bold green]Graph written to[/bold green] {dest}  "
         f"[dim]({len(graph.nodes)} node(s), {len(graph.edges)} edge(s))[/dim]"
     )
+    _print_insights_summary(insights, graph)
+
+
+def _print_insights_summary(insights, graph) -> None:
+    """One-line digest after the graph is written, e.g.:
+
+    ``Graph: 7 nodes, 9 edges, 2 clusters. Highest blast radius: foo.py (critical, 4 connections)``
+    """
+    parts = [
+        f"Graph: {insights.total_nodes} node{_s(insights.total_nodes)}",
+        f"{insights.total_edges} edge{_s(insights.total_edges)}",
+        f"{len(insights.risk_clusters)} cluster{_s(len(insights.risk_clusters))}",
+    ]
+    line = ", ".join(parts) + "."
+
+    worst_id = insights.highest_blast_radius_node
+    if worst_id and worst_id in insights.node_insights:
+        ins = insights.node_insights[worst_id]
+        node = next((n for n in graph.nodes if n.id == worst_id), None)
+        label = node.label if node else worst_id
+        line += (
+            f" Highest blast radius: {label} "
+            f"({ins.blast_radius}, {ins.degree} connection{_s(ins.degree)})."
+        )
+
+    if insights.isolated_nodes:
+        n = len(insights.isolated_nodes)
+        line += f" {n} isolated system{_s(n)} — review for shadow AI."
+
+    console.print(line)
+
+
+def _s(n: int) -> str:
+    return "" if n == 1 else "s"
 
 
 def _default_out_file(output: str) -> str:

@@ -125,6 +125,36 @@ class TestHTMLRenderer:
         # Detail-panel edge rows multiply confidence by 100 and round.
         assert "Math.round(e.confidence * 100)" in html
 
+    def test_insights_payload_embedded(self):
+        """The renderer must embed an ``insights`` block in DATA so the
+        summary bar, blast-radius panel, and isolated-node pulse all have
+        something to read."""
+        html = to_html(_example_graph())
+        assert '"insights"' in html
+        assert "node_insights" in html
+        assert "isolated_nodes" in html
+        assert "risk_clusters" in html
+
+    def test_summary_bar_logic_present(self):
+        """The script that fills the summary bar runs on page load."""
+        html = to_html(_example_graph())
+        assert 'id="summary-bar"' in html
+        assert "renderSummaryBar" in html
+        assert "shadow AI" in html  # the warning text shown when isolated > 0
+
+    def test_blast_radius_helper_present(self):
+        html = to_html(_example_graph())
+        assert "blastRadiusHtml" in html
+        # The big-deal warning sentence is the user-facing anchor.
+        assert "Compromise of this system could impact" in html
+
+    def test_isolated_pulse_animation_present(self):
+        """Isolated nodes get a pulsing glow so they read as ungoverned."""
+        html = to_html(_example_graph())
+        assert "aigov-isolated-pulse" in html
+        # The class assignment that triggers the animation.
+        assert "ISOLATED_IDS" in html
+
     def test_embeds_every_node_label(self):
         graph = _example_graph()
         html = to_html(graph)
