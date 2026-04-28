@@ -32,6 +32,8 @@ The first command scans the current directory, classifies findings against the E
 
 ## Example Output
 
+![AI System Graph](docs/graph-screenshot.png)
+
 The AI System Graph shows your AI landscape at a glance — node size reflects risk score, color indicates risk level (red = critical, orange = high, green = low), edges show evidence-backed relationships, and the side panel reveals blast radius and connection details. Generate it with `aigov graph . --out-file graph.html`.
 
 A summary bar at the top of the page reports cluster count, isolated nodes (potential shadow AI), and the system with the largest blast radius. Click any node to see its risk drivers, the recommendations for remediation, and the evidence behind every relationship it participates in. Hover any edge to see *why* the two systems are linked — shared `.env`, MCP server in same project, two `.py` files in the same package, and so on.
