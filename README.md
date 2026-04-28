@@ -253,6 +253,10 @@ aigov export inventory.json --format sarif --out-file inventory.sarif
 
 ## Architecture
 
+![Architecture](docs/architecture.png)
+
+*Scanners → Pipeline → Output — everything runs locally, no data leaves your machine.*
+
 ```mermaid
 flowchart LR
     CLI["CLI<br/>aigov scan / graph"] --> Engine["Scan Engine"]
