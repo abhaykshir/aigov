@@ -5,7 +5,7 @@
 If you discover a security vulnerability in aigov, please report it responsibly:
 
 1. **Do NOT open a public GitHub issue for security vulnerabilities**
-2. Email: kshirabhay@gmail.com with subject "aigov security vulnerability"
+2. Email: kshirabhay92@gmail.com with subject "aigov security vulnerability"
 3. Include: description of the vulnerability, steps to reproduce, and potential impact
 4. Expected response: acknowledgment within 48 hours, fix timeline within 7 days
 

@@ -7,7 +7,7 @@ description = "AI Governance-as-Code CLI — discover, classify, and govern AI s
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    { name = "Abhay K", email = "kshirabhay@gmail.com" },
+    { name = "Abhay K", email = "kshirabhay92@gmail.com" },
 ]
 license = { text = "Apache-2.0" }
 classifiers = [
