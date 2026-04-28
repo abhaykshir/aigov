@@ -119,7 +119,7 @@ Add aigov to your workflow to block deployments if prohibited AI systems are det
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: abhaykshir/aigov@v1
+  - uses: abhaykshir/aigov@v0.5.0
     with:
       scan-paths: "."
       classify: "true"
@@ -167,7 +167,7 @@ aigov baseline diff --fail-on-drift
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: abhaykshir/aigov@v1
+- uses: abhaykshir/aigov@v0.5.0
   with:
     scan-paths: "."
     classify: "true"
