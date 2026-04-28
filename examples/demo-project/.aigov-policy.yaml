@@ -1,0 +1,19 @@
+policies:
+  - name: block-public-pii
+    description: "Block public-facing AI that processes PII"
+    condition:
+      exposure: public_api
+      data_sensitivity: pii
+    action: fail
+
+  - name: warn-high-risk-scores
+    description: "Warn on any finding scoring 70 or above"
+    condition:
+      risk_score: ">=70"
+    action: warn
+
+  - name: block-restricted-jurisdiction
+    description: "Block AI from restricted jurisdictions"
+    condition:
+      jurisdiction: ["CN", "RU"]
+    action: fail

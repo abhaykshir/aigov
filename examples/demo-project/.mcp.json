@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "database-query": {
+      "command": "npx",
+      "args": ["-y", "@company/mcp-database-server"],
+      "env": {
+        "DB_CONNECTION_STRING": "DEMO_DB_CONNECTION_STRING_PLACEHOLDER",
+        "DB_READ_ONLY_TOKEN": "DEMO_DB_TOKEN_PLACEHOLDER"
+      }
+    },
+    "slack-notifications": {
+      "command": "npx",
+      "args": ["-y", "@company/mcp-slack-server"],
+      "env": {
+        "SLACK_BOT_TOKEN": "DEMO_SLACK_BOT_TOKEN_PLACEHOLDER"
+      }
+    }
+  }
+}

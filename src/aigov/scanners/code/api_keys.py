@@ -188,13 +188,31 @@ def _is_scannable(path: Path) -> bool:
     return False
 
 
-def _should_skip(path: Path) -> bool:
-    parts_lower = [p.lower() for p in path.parts]
+def _should_skip(path: Path, scan_root: Path | None = None) -> bool:
+    """Decide whether *path* should be excluded from scanning.
+
+    Same rationale as ``python_imports._should_skip``: only apply the
+    skip-component list to path parts *below* ``scan_root`` so users can
+    deliberately point aigov at e.g. ``examples/demo-project`` and have its
+    contents scanned.
+    """
+    parts_lower = _components_below_root(path, scan_root)
     if any(part in _SKIP_DIRS for part in parts_lower):
         return True
     if any(part in _SKIP_PATH_COMPONENTS for part in parts_lower):
         return True
     return False
+
+
+def _components_below_root(path: Path, scan_root: Path | None) -> list[str]:
+    parts_lower = [p.lower() for p in path.parts]
+    if scan_root is None:
+        return parts_lower
+    try:
+        rel = path.resolve().relative_to(scan_root.resolve())
+    except (OSError, ValueError):
+        return parts_lower
+    return [p.lower() for p in rel.parts]
 
 
 def _scan_file(
@@ -253,16 +271,20 @@ class ApiKeysScanner(BaseScanner):
         for root_path in paths:
             root = Path(root_path)
             candidates: list[Path] = []
+            skip_root: Path | None = None
 
             if root.is_file():
                 candidates = [root]
+                # A direct file argument is exempt from the skip list —
+                # the user pointed at it.
             elif root.is_dir():
                 candidates = list(root.rglob("*"))
+                skip_root = root
 
             for path in candidates:
                 if not path.is_file():
                     continue
-                if _should_skip(path):
+                if _should_skip(path, scan_root=skip_root):
                     continue
                 if not _is_scannable(path):
                     continue

@@ -92,13 +92,39 @@ _PREFIX_OVERRIDES: dict[str, _LibraryDef] = {
 _BOTO3_AI_KEYWORDS = frozenset({"bedrock", "sagemaker"})
 
 
-def _should_skip(path: Path) -> bool:
-    parts_lower = [p.lower() for p in path.parts]
+def _should_skip(path: Path, scan_root: Path | None = None) -> bool:
+    """Decide whether *path* should be excluded from scanning.
+
+    The skip list (``test``, ``examples``, ``mocks`` …) prevents noise from
+    sample / fixture code inside a real project — but it also prevents users
+    from pointing aigov *at* an examples directory and getting any output.
+    To support both, we only apply the skip list to path components **below**
+    ``scan_root``: anything in the scan-root prefix itself is the user's
+    deliberate target and exempt.
+    """
+    parts_lower = _components_below_root(path, scan_root)
     if any(part in _SKIP_DIRS for part in parts_lower):
         return True
     if any(part in _SKIP_PATH_COMPONENTS for part in parts_lower):
         return True
     return False
+
+
+def _components_below_root(path: Path, scan_root: Path | None) -> list[str]:
+    """Return *path*'s components below the scan root, lowercased.
+
+    Falls back to every component of *path* when ``scan_root`` is None or
+    when *path* is not a descendant of it — preserving the original
+    scan-everything behaviour for callers that don't pass a root.
+    """
+    parts_lower = [p.lower() for p in path.parts]
+    if scan_root is None:
+        return parts_lower
+    try:
+        rel = path.resolve().relative_to(scan_root.resolve())
+    except (OSError, ValueError):
+        return parts_lower
+    return [p.lower() for p in rel.parts]
 
 
 def _import_root(name: str) -> str:
@@ -273,11 +299,11 @@ class PythonImportsScanner(BaseScanner):
         for root_path in paths:
             root = Path(root_path)
             if root.is_file() and root.suffix == ".py":
-                if not _should_skip(root):
-                    records.extend(_scan_file(root, timestamp, seen))
+                # A direct file argument is exempt — the user pointed at it.
+                records.extend(_scan_file(root, timestamp, seen))
             elif root.is_dir():
                 for py_file in root.rglob("*.py"):
-                    if not _should_skip(py_file):
+                    if not _should_skip(py_file, scan_root=root):
                         records.extend(_scan_file(py_file, timestamp, seen))
 
         return records

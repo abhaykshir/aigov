@@ -15,6 +15,10 @@ wheels/
 # scanner tests behave identically in CI. The values inside are intentionally
 # fake (sk-fake-*) — see tests/fixtures/sample_graph_project/*/.env.
 !tests/fixtures/**/.env
+# Exception: example-project .env files. These ship with the repo so users can
+# run aigov against the bundled examples/ directory and see the full pipeline.
+# All values are deliberately fake placeholders — see examples/demo-project/.env.
+!examples/**/.env
 
 # Tool caches
 .pytest_cache/

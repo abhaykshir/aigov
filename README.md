@@ -12,6 +12,25 @@ aigov is an experimental AI governance and risk analysis CLI that discovers AI s
 
 ---
 
+## Status
+
+Alpha — heuristic-based detection and context inference. Actively developed. Feedback welcome.
+
+---
+
+## What this is
+
+A discovery and prioritization tool for AI systems — finds what AI you're running, estimates risk, and visualizes relationships.
+
+## What this is not
+
+- Not a full compliance solution — use alongside your GRC platform
+- Not runtime enforcement — static analysis only
+- Not legal advice — consult counsel for compliance decisions
+- Not a replacement for manual review — a starting point for governance
+
+---
+
 ## What problem are we solving?
 
 The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisation deploying AI in or selling into the EU must maintain a documented inventory of its AI systems — yet most engineering teams have no idea how many AI integrations actually live in their codebases. Studies show 80%+ of knowledge workers use AI tools without formal approval, creating pervasive "shadow AI" that nobody has inventoried or risk-assessed. No open-source tool existed to automatically discover and inventory AI usage the way `trivy` or `grype` handle CVEs. aigov fills that gap — run one command, get a full AI inventory with EU AI Act risk classifications, context-aware risk scores, and a visual map of how your AI systems relate.
@@ -300,6 +319,12 @@ Contributions are welcome — especially new scanners, classification rules, and
 ## Governance
 
 This project is maintained by [Abhay K](https://github.com/abhaykshir). See [GOVERNANCE.md](GOVERNANCE.md) for the decision process and regulatory accuracy policy.
+
+---
+
+## Performance
+
+Designed for small to medium codebases (up to ~50 repos). Large monorepos may require scanner filtering via `--scanners` flag.
 
 ---
 
