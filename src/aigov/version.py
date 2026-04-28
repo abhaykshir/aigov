@@ -5,4 +5,4 @@ attribute via ``[tool.setuptools.dynamic]`` so the build system stays in
 sync without a second edit.
 """
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
