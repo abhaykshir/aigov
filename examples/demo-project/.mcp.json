@@ -1,18 +1,18 @@
 {
   "mcpServers": {
-    "database-query": {
+    "siem-connector": {
       "command": "npx",
-      "args": ["-y", "@company/mcp-database-server"],
+      "args": ["-y", "@company/mcp-siem-server"],
       "env": {
-        "DB_CONNECTION_STRING": "DEMO_DB_CONNECTION_STRING_PLACEHOLDER",
-        "DB_READ_ONLY_TOKEN": "DEMO_DB_TOKEN_PLACEHOLDER"
+        "SPLUNK_URL": "DEMO_SPLUNK_URL_PLACEHOLDER",
+        "SPLUNK_HEC_TOKEN": "DEMO_SPLUNK_HEC_TOKEN_PLACEHOLDER"
       }
     },
-    "slack-notifications": {
+    "jira-tickets": {
       "command": "npx",
-      "args": ["-y", "@company/mcp-slack-server"],
+      "args": ["-y", "@company/mcp-jira-server"],
       "env": {
-        "SLACK_BOT_TOKEN": "DEMO_SLACK_BOT_TOKEN_PLACEHOLDER"
+        "JIRA_API_TOKEN": "DEMO_JIRA_API_TOKEN_PLACEHOLDER"
       }
     }
   }
