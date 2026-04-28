@@ -1,6 +1,6 @@
 # aigov
 
-**AI governance and risk analysis CLI — discover, classify, score, and visualise AI systems across your codebase and infrastructure.**
+**aigov is a static analysis and CI enforcement tool for AI/LLM risk in codebases. It scans your code, configs, and cloud infrastructure to discover AI systems, score their risk, enforce policies, and visualize how they connect.**
 
 ---
 
@@ -20,14 +20,14 @@ Alpha — heuristic-based detection and context inference. Actively developed. F
 
 ## What this is
 
-A discovery and prioritization tool for AI systems — finds what AI you're running, estimates risk, and visualizes relationships.
+A static analysis scanner and CI enforcement tool for AI-related risks — conceptually similar to Semgrep or CodeQL, but focused on AI usage patterns, sensitive data exposure, and regulatory classification.
 
 ## What this is not
 
-- Not a full compliance solution — use alongside your GRC platform
-- Not runtime enforcement — static analysis only
-- Not legal advice — consult counsel for compliance decisions
-- Not a replacement for manual review — a starting point for governance
+- Not an LLM proxy or runtime guardrail
+- Not an inference-time policy engine
+- Not a prompt firewall or model gateway
+- Not a replacement for manual compliance review
 
 ---
 
