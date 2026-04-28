@@ -284,13 +284,34 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   .link {{
     stroke: var(--border);
+    stroke-opacity: 0.3;
+    transition: stroke-opacity 120ms ease;
+    cursor: pointer;
+  }}
+  .link.hover {{
     stroke-opacity: 0.85;
+    stroke: var(--accent);
+  }}
+  /* A wider, fully transparent overlay line catches mouse events so thin
+     edges remain hoverable without making them visually heavier. */
+  .link-hit {{
+    stroke: transparent;
+    fill: none;
+    cursor: pointer;
   }}
   .link-label {{
-    fill: var(--text-dim);
-    font-size: 9.5px;
+    fill: var(--text);
+    font-size: 10px;
     text-anchor: middle;
     pointer-events: none;
+    paint-order: stroke;
+    stroke: var(--bg);
+    stroke-width: 3px;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }}
+  .link-label.visible {{
+    opacity: 1;
   }}
   /* Tooltip */
   #tooltip {{
@@ -319,9 +340,9 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <span class="meta">scanned: {scan_paths}</span>
 </header>
 <main>
-  <svg id="graph"></svg>
+  <svg id="graph" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
   <aside id="detail-panel">
-    <p class="placeholder">Click any node to see its details, risk drivers, and the relationships that connect it to other systems.</p>
+    <p class="placeholder">Click any node to see its details, risk drivers, and the relationships that connect it to other systems. Scroll to zoom · drag empty space to pan.</p>
   </aside>
 </main>
 <div id="tooltip"></div>
@@ -335,6 +356,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <div class="title" style="margin-top:8px">Edge style</div>
   <div class="row">━━━ confidence ≥ 0.7</div>
   <div class="row">┄┄┄ confidence &lt; 0.7</div>
+  <div class="row" style="margin-top:4px"><span style="opacity:0.6">hover an edge</span> to label it</div>
 </div>
 <div id="disclaimer">
   Automated signal — not legal advice. Risk scores combine pattern-matched
@@ -370,39 +392,146 @@ const svg = d3.select('#graph');
 const tooltip = d3.select('#tooltip');
 const detail = d3.select('#detail-panel');
 
-const width  = () => svg.node().clientWidth;
-const height = () => svg.node().clientHeight;
+// Coordinate system is fixed by the SVG viewBox so layout is predictable
+// regardless of how big the browser sized the element.
+const SVG_W = 1200;
+const SVG_H = 800;
+const PADDING = 50;
+const CENTER_X = SVG_W / 2;
+const CENTER_Y = SVG_H / 2;
 
-// Use D3's id accessor against node.id strings rather than indices.
-const linkForce = d3.forceLink(DATA.edges)
+// Place every node on a circle around the centre to start. A fresh
+// simulation that's never been laid out otherwise spawns nodes at (0,0)
+// and only the centring force pulls them in — when the SVG hasn't been
+// measured yet that means everything stays in the top-left corner.
+DATA.nodes.forEach((n, i) => {{
+  const count = Math.max(DATA.nodes.length, 1);
+  const angle = (2 * Math.PI * i) / count;
+  const r = Math.min(SVG_W, SVG_H) * 0.22;
+  n.x = CENTER_X + r * Math.cos(angle);
+  n.y = CENTER_Y + r * Math.sin(angle);
+}});
+
+// d3.forceLink expects each edge to carry ``source`` and ``target`` fields
+// — but our schema uses the more explicit ``source_id`` / ``target_id``
+// in the JSON payload. Alias them here so D3 can resolve nodes by id while
+// the JSON shape stays self-describing.
+const edges = DATA.edges.map(e => ({{
+  ...e,
+  source: e.source_id,
+  target: e.target_id,
+}}));
+
+// Derive a file-based display label per node. ``record.name`` (e.g.
+// "OpenAI via openai") is repeated across many records — the file name is
+// far more useful for visual identification. When two nodes share a base
+// filename, prepend parent directories until they're distinguishable; if
+// even that doesn't separate them (e.g. multiple MCP servers in the same
+// .mcp.json), append the original system name.
+const NODE_LABELS = (function buildLabels(nodes) {{
+  const stripLine = s => String(s || '').replace(/[:#]L?\\d+$/, '');
+  const toPosix = s => stripLine(s).replace(/\\\\/g, '/');
+  const parts = new Map();
+  nodes.forEach(n => {{
+    const path = toPosix(n.source_location);
+    const segs = path.split('/').filter(Boolean);
+    parts.set(n.id, segs.length ? segs : [n.label]);
+  }});
+
+  function tail(node, depth) {{
+    const segs = parts.get(node.id);
+    const start = Math.max(0, segs.length - depth);
+    return segs.slice(start).join('/');
+  }}
+
+  // Group nodes by their base filename, then resolve each group.
+  const groups = new Map();
+  nodes.forEach(n => {{
+    const base = tail(n, 1);
+    if (!groups.has(base)) groups.set(base, []);
+    groups.get(base).push(n);
+  }});
+
+  const out = new Map();
+  for (const [base, group] of groups) {{
+    if (group.length === 1) {{
+      out.set(group[0].id, base);
+      continue;
+    }}
+    let resolved = false;
+    for (let depth = 2; depth <= 4 && !resolved; depth++) {{
+      const candidates = group.map(n => [n.id, tail(n, depth)]);
+      const distinct = new Set(candidates.map(([, l]) => l)).size === candidates.length;
+      if (distinct) {{
+        candidates.forEach(([id, l]) => out.set(id, l));
+        resolved = true;
+      }}
+    }}
+    if (!resolved) {{
+      // Fall back to "<base> (<system name>)" — happens for MCP servers
+      // that share the same .mcp.json file.
+      group.forEach(n => out.set(n.id, `${{base}} (${{n.label}})`));
+    }}
+  }}
+  return out;
+}})(DATA.nodes);
+
+// Link distance scales by confidence: a 0.9-confidence edge tightens the
+// pair to ~140 px, a 0.5-confidence edge lets them drift to ~200 px.
+// Slightly looser than v1 so node circles don't crowd each other.
+const linkForce = d3.forceLink(edges)
   .id(d => d.id)
-  .distance(140)
-  .strength(d => 0.2 + d.confidence * 0.6);
+  .distance(d => 260 - 130 * d.confidence)
+  .strength(d => 0.3 + d.confidence * 0.4);
 
 const simulation = d3.forceSimulation(DATA.nodes)
   .force('link', linkForce)
-  .force('charge', d3.forceManyBody().strength(-280))
-  .force('center', d3.forceCenter(width() / 2, height() / 2))
-  .force('collide', d3.forceCollide().radius(d => nodeRadius(d) + 12));
+  .force('charge', d3.forceManyBody().strength(-900))
+  .force('center', d3.forceCenter(CENTER_X, CENTER_Y))
+  .force('collide', d3.forceCollide().radius(d => nodeRadius(d) + 28))
+  // Soft pull toward the centre on each axis — keeps the layout from
+  // drifting against the bounding box clamp below.
+  .force('x', d3.forceX(CENTER_X).strength(0.04))
+  .force('y', d3.forceY(CENTER_Y).strength(0.04));
 
-// d3.forceLink rewrote each edge so source / target are the actual node objects.
-// Use the link data as our edge data going forward.
-const edges = DATA.edges;
+// Everything inside ``zoomLayer`` is transformed by the d3.zoom handler
+// below — pan and zoom don't move the SVG itself, just this group.
+const zoomLayer = svg.append('g').attr('class', 'zoom-layer');
 
-const link = svg.append('g').selectAll('line')
+// Render order: visible link first, then a wide invisible "hit" line on
+// top so thin edges remain hoverable, then labels (initially hidden).
+const linkLayer = zoomLayer.append('g').attr('class', 'links');
+const link = linkLayer.selectAll('line.link')
   .data(edges)
   .join('line')
   .attr('class', 'link')
-  .attr('stroke-width', d => 1 + d.confidence * 2)
+  .attr('stroke-width', d => 0.8 + d.confidence * 1.2)
   .attr('stroke-dasharray', d => d.confidence < 0.7 ? '4 3' : null);
 
-const linkLabel = svg.append('g').selectAll('text')
+const linkHit = linkLayer.selectAll('line.link-hit')
+  .data(edges)
+  .join('line')
+  .attr('class', 'link-hit')
+  .attr('stroke-width', 14);
+
+const linkLabel = zoomLayer.append('g').attr('class', 'link-labels')
+  .selectAll('text')
   .data(edges)
   .join('text')
   .attr('class', 'link-label')
   .text(d => d.relationship);
 
-const node = svg.append('g').selectAll('g')
+linkHit
+  .on('mouseenter', (event, d) => {{
+    link.filter(ld => ld === d).classed('hover', true);
+    linkLabel.filter(ld => ld === d).classed('visible', true);
+  }})
+  .on('mouseleave', (event, d) => {{
+    link.filter(ld => ld === d).classed('hover', false);
+    linkLabel.filter(ld => ld === d).classed('visible', false);
+  }});
+
+const node = zoomLayer.append('g').selectAll('g')
   .data(DATA.nodes, d => d.id)
   .join('g')
   .attr('class', 'node')
@@ -425,7 +554,7 @@ node.append('circle')
 
 node.append('text')
   .attr('dy', d => nodeRadius(d) + 14)
-  .text(d => truncate(d.label, 28));
+  .text(d => truncate(NODE_LABELS.get(d.id) || d.label, 32));
 
 function truncate(s, n) {{
   if (!s) return '';
@@ -534,22 +663,75 @@ function escapeHtml(s) {{
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }}
 
+function clamp(value, lo, hi) {{
+  return Math.max(lo, Math.min(hi, value));
+}}
+
 simulation.on('tick', () => {{
-  link
+  // Bounding-box constraint — keep every node fully inside the viewBox so
+  // they don't drift off-screen when the simulation gets excited.
+  DATA.nodes.forEach(d => {{
+    const r = nodeRadius(d);
+    d.x = clamp(d.x, r + PADDING, SVG_W - r - PADDING);
+    d.y = clamp(d.y, r + PADDING, SVG_H - r - PADDING);
+  }});
+  const setEndpoints = sel => sel
     .attr('x1', d => d.source.x)
     .attr('y1', d => d.source.y)
     .attr('x2', d => d.target.x)
     .attr('y2', d => d.target.y);
+  setEndpoints(link);
+  setEndpoints(linkHit);
   linkLabel
     .attr('x', d => (d.source.x + d.target.x) / 2)
     .attr('y', d => (d.source.y + d.target.y) / 2);
   node.attr('transform', d => `translate(${{d.x}},${{d.y}})`);
 }});
 
-window.addEventListener('resize', () => {{
-  simulation.force('center', d3.forceCenter(width() / 2, height() / 2));
-  simulation.alpha(0.3).restart();
+// Zoom + pan: scrolling rescales, click-and-drag on empty space pans.
+const zoom = d3.zoom()
+  .scaleExtent([0.2, 5])
+  .on('zoom', (event) => {{
+    zoomLayer.attr('transform', event.transform);
+  }});
+svg.call(zoom);
+
+// Auto-fit once the simulation cools — picks a transform that puts every
+// node comfortably inside the visible area. We only fit on the first
+// stabilisation; later drags shouldn't yank the camera around.
+let _autoFitDone = false;
+simulation.on('end', () => {{
+  if (_autoFitDone) return;
+  _autoFitDone = true;
+  fitToView();
 }});
+
+function fitToView() {{
+  if (DATA.nodes.length === 0) return;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  DATA.nodes.forEach(d => {{
+    const r = nodeRadius(d);
+    minX = Math.min(minX, d.x - r);
+    maxX = Math.max(maxX, d.x + r);
+    minY = Math.min(minY, d.y - r);
+    maxY = Math.max(maxY, d.y + r);
+  }});
+  const w = maxX - minX;
+  const h = maxY - minY;
+  if (w <= 0 || h <= 0) return;
+  const margin = 50;
+  const scale = Math.min(
+    SVG_W / (w + margin * 2),
+    SVG_H / (h + margin * 2),
+    1.5
+  );
+  const tx = SVG_W / 2 - scale * (minX + w / 2);
+  const ty = SVG_H / 2 - scale * (minY + h / 2);
+  svg.transition().duration(500).call(
+    zoom.transform,
+    d3.zoomIdentity.translate(tx, ty).scale(scale)
+  );
+}}
 </script>
 </body>
 </html>

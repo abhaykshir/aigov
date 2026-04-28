@@ -246,6 +246,12 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 
 ---
 
+## Tests
+
+959 tests passing across the scanner, classifier, risk-scoring, policy, explainability, graph, and CI subsystems. Run them locally with `pytest` from the repo root.
+
+---
+
 ## Roadmap
 
 > aigov is in active alpha development. Features are functional but evolving. Feedback and contributions welcome.

@@ -24,4 +24,9 @@ wheels/
 # Demo output
 demo/
 demo-compliance-docs/
+demo-graph.html
 .claude/
+
+# Generated graph artifacts (aigov graph default output names)
+aigov-graph.html
+aigov-graph.json
