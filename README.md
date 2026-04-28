@@ -1,30 +1,20 @@
 # aigov
 
-**AI Governance-as-Code CLI — discover, classify, and govern AI systems across your infrastructure.**
+**AI governance and risk analysis CLI — discover, classify, score, and visualise AI systems across your codebase and infrastructure.**
 
 ---
 
 ## tl;dr
 
-aigov scans your codebase, CI pipeline, and cloud infrastructure to automatically discover every AI system in use, produce an automated EU AI Act risk signal for each one, and flag the compliance gaps your team needs to close. It works like `trivy` for CVEs — but for AI governance risk. Built for engineering teams who must achieve EU AI Act compliance before the August 2026 enforcement deadline.
+aigov is an experimental AI governance and risk analysis CLI that discovers AI systems across your codebase, cloud infrastructure, and developer tools — classifies them against the EU AI Act, computes context-aware risk scores, and visualizes relationships via an evidence-backed graph.
 
-> **Disclaimer:** aigov classifications are automated signals based on pattern matching. They are **not legal advice**. Consult qualified legal counsel for compliance decisions.
+> **Disclaimer:** aigov classifications and risk scores are automated signals based on pattern matching. They are **not legal advice**. Consult qualified legal counsel for compliance decisions.
 
 ---
 
 ## What problem are we solving?
 
-The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisation deploying AI in or selling into the EU must maintain a documented inventory of its AI systems — yet most engineering teams have no idea how many AI integrations actually live in their codebases. Studies show 80%+ of knowledge workers use AI tools without formal approval, creating pervasive "shadow AI" that nobody has inventoried or risk-assessed. No open-source tool existed to automatically discover and inventory AI usage the way `trivy` or `grype` handle CVEs. aigov fills that gap — run one command, get a full AI inventory with EU AI Act risk classifications.
-
----
-
-## What does aigov do?
-
-aigov runs a four-stage pipeline: **discover** AI systems from imports, API keys, MCP configs, and cloud resources; produce an **automated risk signal** against the EU AI Act risk tiers (pattern matching, not legal advice); **gap-analyze** what compliance controls are missing; and **generate** draft documentation and conformity declarations. The full pipeline runs in a single command:
-
-```bash
-aigov scan . --classify --gaps --docs
-```
+The EU AI Act's full enforcement deadline is **2 August 2026**. Every organisation deploying AI in or selling into the EU must maintain a documented inventory of its AI systems — yet most engineering teams have no idea how many AI integrations actually live in their codebases. Studies show 80%+ of knowledge workers use AI tools without formal approval, creating pervasive "shadow AI" that nobody has inventoried or risk-assessed. No open-source tool existed to automatically discover and inventory AI usage the way `trivy` or `grype` handle CVEs. aigov fills that gap — run one command, get a full AI inventory with EU AI Act risk classifications, context-aware risk scores, and a visual map of how your AI systems relate.
 
 ---
 
@@ -32,41 +22,28 @@ aigov scan . --classify --gaps --docs
 
 ```bash
 pip install aigov
-aigov scan . --classify
+aigov scan . --classify --with-risk
+aigov graph . --out-file graph.html
 ```
 
-Example output:
+The first command scans the current directory, classifies findings against the EU AI Act, and computes a 0–100 risk score per system. The second renders an interactive, self-contained HTML graph you can open by double-clicking.
 
-```
-                        AI Systems Found (6)
-┌──────────────────────────────────────────────────────────────────────┐
-│  #  Name                   Type         Provider     Risk            │
-├──────────────────────────────────────────────────────────────────────┤
-│  1  openai (gpt-4o)        api_service  OpenAI       ⚠  limited     │
-│  2  anthropic (claude-3)   api_service  Anthropic    ⚠  limited     │
-│  3  rekognition             model        AWS          🔴 high_risk   │
-│  4  filesystem              mcp_server   —            ✓  minimal     │
-│  5  langchain               agent        LangChain    ⚠  limited     │
-│  6  deepseek                api_service  DeepSeek     ⚠  limited     │
-└──────────────────────────────────────────────────────────────────────┘
+---
 
-Found 6 AI systems · 1 high-risk · 3 limited-risk · 2 minimal-risk
-```
+## Example Output
 
-Export to JSON, Markdown, or CSV for compliance evidence and GRC platform import:
+The AI System Graph shows your AI landscape at a glance — node size reflects risk score, color indicates risk level (red = critical, orange = high, green = low), edges show evidence-backed relationships, and the side panel reveals blast radius and connection details. Generate it with `aigov graph . --out-file graph.html`.
 
-```bash
-aigov scan . --output json --out-file inventory.json
-aigov scan . --output markdown --out-file AIINVENTORY.md
-aigov scan . --classify --output csv --out-file inventory.csv
-```
+A summary bar at the top of the page reports cluster count, isolated nodes (potential shadow AI), and the system with the largest blast radius. Click any node to see its risk drivers, the recommendations for remediation, and the evidence behind every relationship it participates in. Hover any edge to see *why* the two systems are linked — shared `.env`, MCP server in same project, two `.py` files in the same package, and so on.
 
-Export a saved scan result directly to CSV or flat JSON for Excel, CISO Assistant, ServiceNow, or any GRC tool:
+---
 
-```bash
-aigov export inventory.json --format csv --out-file inventory.csv
-aigov export inventory.json --format json --out-file inventory-flat.json
-```
+## How It Works
+
+- **Detects AI usage via static analysis** — scans Python imports, API keys, MCP configs, Dockerfiles, Terraform, Kubernetes manifests, and AWS cloud APIs to build an inventory of every AI system referenced in your repository.
+- **Enriches context** — infers each system's deployment environment (production / staging / development / test), exposure (public API / internal service / batch / unknown), data sensitivity (PII, financial, health, auth credentials), and interaction type (real-time user-facing, batch / cron, internal tooling).
+- **Computes risk scores (0–100)** — deterministic and explainable. The score combines the EU AI Act classification baseline with the four context modifiers above, clamped to `[0, 100]` and banded into critical / high / medium / low. Every score ships with its driver list so you can see exactly *why* it landed where it did.
+- **Builds an evidence-backed relationship graph** — edges only exist when there is concrete evidence: shared config files, an MCP server in the same project as an AI service, two `.py` files in the same package, two AWS resources in the same Terraform module. Each edge carries a confidence and the evidence sentence(s) that produced it.
 
 ---
 
@@ -99,6 +76,18 @@ All findings include `origin_jurisdiction` (ISO 3166-1) for geography-based poli
 ## Risk Scoring
 
 `aigov scan --with-risk` produces a deterministic 0–100 risk score per finding, combining the EU AI Act classification with deployment context (environment, exposure, data sensitivity, interaction type). Scores are pattern-matching signals, not legal determinations — see [docs/scoring-model.md](docs/scoring-model.md) for the base scores, modifier tables, banding, confidence calculation, and a worked example.
+
+---
+
+## Limitations
+
+aigov is an alpha tool with concrete trade-offs. Read these before relying on it:
+
+- **Detection is heuristic-based.** Static analysis cannot catch all AI usage patterns — dynamically loaded models, browser-based AI tools, AI invoked from generated code, and AI behind opaque service boundaries will not be found.
+- **Relationships are inferred, not proven runtime dependencies.** Every edge in the graph is an evidence-backed signal — "both files import openai", "both AI services share a directory with an .env" — not a guaranteed runtime call. Use the evidence sentences and confidence values as triage signals, not facts.
+- **Risk scores are automated signals, not legal determinations.** Pattern matching makes no commitment about EU AI Act compliance, fitness for any regulatory regime, or fitness for any legal purpose. Consult qualified legal counsel for compliance decisions.
+- **Currently scans Python files only.** JavaScript / TypeScript, Java, and Go scanners are on the roadmap. Until then, repos written in those languages are blind spots.
+- **Best used as a discovery and prioritization tool, not a compliance certificate.** aigov surfaces AI systems for human review — it does not replace legal review, threat modelling, or formal conformity assessment.
 
 ---
 
@@ -216,21 +205,46 @@ aigov scan . --classify --rules ./policies/ai-rules.yaml
 
 ---
 
+## Output Formats
+
+```bash
+# JSON — full schema with classification, risk fields, drivers, and tags
+aigov scan . --classify --with-risk --output json --out-file inventory.json
+
+# Markdown — human-readable report with risk scoring section
+aigov scan . --classify --output markdown --out-file AIINVENTORY.md
+
+# CSV — flat schema for Excel, CISO Assistant, ServiceNow, or any GRC tool
+aigov scan . --classify --output csv --out-file inventory.csv
+
+# SARIF — for the GitHub Security tab
+aigov scan . --classify --output sarif --out-file inventory.sarif
+```
+
+Or convert a saved scan result post-hoc:
+
+```bash
+aigov export inventory.json --format csv --out-file inventory.csv
+aigov export inventory.json --format sarif --out-file inventory.sarif
+```
+
+---
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-    CLI["CLI\naigov scan"] --> Engine["Scan Engine"]
-    Engine --> S1["code.python_imports"]
-    Engine --> S2["code.api_keys"]
-    Engine --> S3["config.mcp_servers"]
-    Engine --> S4["cloud.aws"]
-    S1 & S2 & S3 & S4 --> Records["AISystemRecord[]"]
-    Records --> Classifier["Classifier\n(EU AI Act)"]
-    Classifier --> Gaps["Gap Analyzer"]
-    Gaps --> Docs["Docs Generator"]
-    Docs --> Out1["JSON / Markdown"]
-    Docs --> Out2["Conformity Declarations"]
+    CLI["CLI<br/>aigov scan / graph"] --> Engine["Scan Engine"]
+    Engine --> Scanners["Scanners<br/>(code, infra, cloud)"]
+    Scanners --> Records["AISystemRecord[]"]
+    Records --> Classifier["EU AI Act Classifier"]
+    Classifier --> Risk["Context-Aware<br/>Risk Scoring"]
+    Risk --> Graph["Relationship Graph<br/>+ Insights"]
+    Risk --> Gaps["Gap Analyzer"]
+    Risk --> Policy["Policy Engine"]
+    Gaps --> Docs["Compliance Docs"]
+    Graph --> HTML["HTML / JSON"]
+    Policy --> CI["CI/CD Gate"]
 ```
 
 ---
@@ -248,7 +262,7 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## Tests
 
-959 tests passing across the scanner, classifier, risk-scoring, policy, explainability, graph, and CI subsystems. Run them locally with `pytest` from the repo root.
+1006 tests passing across the scanner, classifier, risk-scoring, policy, explainability, graph, and CI subsystems. Run them locally with `pytest` from the repo root.
 
 ---
 
@@ -262,13 +276,16 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 | 2 — Risk Classification | Shipped (alpha) | EU AI Act Article 5, Annex III, Article 50 |
 | 3 — Gap Analysis | Shipped (alpha) | Compliance gap analyzer — missing controls per finding |
 | 4 — Documentation Generator | Shipped (alpha) | Draft conformity declarations and DPIA stubs |
-| 5 — Cloud Scanners | Shipped (alpha) | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex |
+| 5 — Cloud & Infra Scanners | Shipped (alpha) | AWS Bedrock, SageMaker, Comprehend, Rekognition, Lex; Docker, Terraform, Kubernetes |
 | 6 — CI/CD Integration | Shipped (alpha) | GitHub Actions reusable action and `aigov-check` CLI |
 | 7 — Continuous Monitoring | Shipped (alpha) | Git hooks, allowlist, and baseline drift detection |
-| 8 — Custom Rules & GRC Export | Shipped (alpha) | Org-specific rules engine; CSV/JSON export for GRC platforms |
-| 9 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
-| 10 — More Scanners | 📋 Planned | JS/TS imports, Terraform AI resources, Docker image scanning |
-| 11 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
+| 8 — Custom Rules & GRC Export | Shipped (alpha) | Org-specific rules engine; CSV / JSON / SARIF export |
+| 9 — Context-Aware Risk Scoring | Shipped (alpha) | 0–100 deterministic scores with environment / exposure / sensitivity / interaction modifiers |
+| 10 — Policy Enforcement & Explainability | Shipped (alpha) | YAML policy engine, unified `aigov-check` flags, actionable per-finding recommendations |
+| 11 — AI System Graph | Shipped (alpha) | Evidence-backed relationship graph with blast radius, cluster detection, and isolated-node alerts |
+| 12 — Additional Frameworks | 📋 Planned | Colorado AI Act SB 205, NIST AI RMF |
+| 13 — JS/TS, Java, Go Scanners | 📋 Planned | Extend static analysis beyond Python |
+| 14 — Dashboard | 📋 Planned | Web UI for inventory visualization and compliance tracking |
 
 ---
 
