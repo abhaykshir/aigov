@@ -42,13 +42,6 @@ def graph_command(
         "eu_ai_act", "--frameworks",
         help="Comma-separated framework names for classification (default: eu_ai_act).",
     ),
-    min_risk_score: int = typer.Option(
-        0, "--min-risk-score",
-        help=(
-            "Only include nodes with risk_score >= this value. Unscored nodes "
-            "are kept if they connect to a surviving node. Default 0 (show all)."
-        ),
-    ),
 ) -> None:
     """Build an interactive graph of discovered AI systems and their relationships.
 
@@ -124,16 +117,7 @@ def graph_command(
         records = scored
         scanned_paths = list(scan_result.scanned_paths) or targets
 
-    threshold = min_risk_score if min_risk_score > 0 else None
-    graph = build_graph(records, scanned_paths, min_risk_score=threshold)
-
-    if threshold is not None and not graph.nodes:
-        console.print(
-            f"No AI systems found with risk score >= {threshold}. "
-            f"Try a lower threshold or run without --min-risk-score."
-        )
-        raise typer.Exit(code=0)
-
+    graph = build_graph(records, scanned_paths)
     insights = compute_insights(graph)
 
     dest = out_file or _default_out_file(output)

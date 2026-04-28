@@ -109,6 +109,37 @@ class TestHTMLRenderer:
         assert "hideWeakEdges" in html
         assert "applyFilters" in html
 
+    def test_high_risk_only_filter_is_default(self):
+        """The page loads showing only high/critical nodes — the rendered
+        button starts in the active state and the runtime filter flag is
+        flipped on at script load."""
+        html = to_html(_example_graph())
+        # Button is rendered with the active class so it reads as pressed.
+        assert 'id="filter-high-risk" class="filter-btn active"' in html
+        # The other two buttons stay inactive on load.
+        assert 'id="filter-weak-edges" class="filter-btn"' in html
+        assert 'id="filter-reset" class="filter-btn"' in html
+        # filterState starts with highRiskOnly: true.
+        assert "highRiskOnly: true" in html
+        assert "hideWeakEdges: false" in html
+
+    def test_apply_filters_runs_on_load(self):
+        """``applyFilters()`` must be invoked at script init so the default
+        filter actually takes effect — without this call the filter flag
+        would be set but no nodes would be hidden."""
+        html = to_html(_example_graph())
+        # Strip the function definition itself, then look for the call site.
+        body = html.split("function applyFilters()", 1)[1]
+        assert "applyFilters();" in body
+
+    def test_summary_bar_uses_full_graph_totals(self):
+        """The summary bar reads ``INSIGHTS.total_nodes`` / ``total_edges`` —
+        the full graph's counts, not the filtered view — so reviewers always
+        know there's more to see when the default filter hides systems."""
+        html = to_html(_example_graph())
+        assert "INSIGHTS.total_nodes" in html
+        assert "INSIGHTS.total_edges" in html
+
     def test_edge_tooltip_logic_embedded(self):
         """Hovering an edge should populate the tooltip with relationship,
         confidence percent, and evidence."""

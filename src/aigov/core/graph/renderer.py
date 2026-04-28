@@ -513,7 +513,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <main>
   <svg id="graph" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
   <div id="filter-toolbar">
-    <button id="filter-high-risk" class="filter-btn" type="button" title="Hide nodes with risk_score &lt; 60">High risk only</button>
+    <button id="filter-high-risk" class="filter-btn active" type="button" title="Hide nodes with risk_score &lt; 60">High risk only</button>
     <button id="filter-weak-edges" class="filter-btn" type="button" title="Hide edges with confidence &lt; 0.7">Hide weak edges</button>
     <button id="filter-reset" class="filter-btn" type="button" title="Reset to full graph">Show all</button>
   </div>
@@ -973,7 +973,10 @@ simulation.on('end', () => {{
 }});
 
 // ----- Filter toolbar -----
-const filterState = {{ highRiskOnly: false, hideWeakEdges: false }};
+// Default to high-risk-only on load. The summary bar still shows the full
+// totals so reviewers know there's more to see; the "Show all" button
+// reveals every node, "High risk only" re-applies the filter.
+const filterState = {{ highRiskOnly: true, hideWeakEdges: false }};
 
 function isNodeHidden(d) {{
   if (!filterState.highRiskOnly) return false;
@@ -1023,6 +1026,10 @@ document.getElementById('filter-reset').addEventListener('click', () => {{
   setBtnState('filter-weak-edges', false);
   applyFilters();
 }});
+
+// Apply the default filter immediately so the page loads showing only
+// high/critical nodes — the most useful view for a reviewer.
+applyFilters();
 
 function fitToView() {{
   if (DATA.nodes.length === 0) return;
