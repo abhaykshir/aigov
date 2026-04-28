@@ -28,7 +28,7 @@ _PROVIDER = "AWS"
 
 def _record_id(resource_type: str, arn: str) -> str:
     raw = f"cloud.aws|{resource_type}|{arn}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _now() -> datetime:

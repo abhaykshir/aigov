@@ -60,7 +60,10 @@ def _make_record(
     key_preview: str,
     timestamp: datetime,
 ) -> AISystemRecord:
-    record_id = hashlib.sha1(f"{file_path}:{lineno}:{defn.label}".encode()).hexdigest()[:16]
+    record_id = hashlib.sha1(
+        f"{file_path}:{lineno}:{defn.label}".encode(),
+        usedforsecurity=False,
+    ).hexdigest()[:16]
     return AISystemRecord(
         id=record_id,
         name=f"{defn.label} detected",
