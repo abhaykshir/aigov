@@ -113,9 +113,10 @@ def _shared_config_edges(
             ))
 
     # Path 2 — evidence-driven edges. An API key in dir D ties together every
-    # pair of AI services that live in D. The api_keys scanner records the
-    # *config file* the key was discovered in (``.env``), and its provider
-    # (e.g. ``OpenAI``) — both useful in the evidence sentence.
+    # pair of AI services that live in D. Confidence is 0.8 (not 0.9 like
+    # path 1): co-residence with an .env is a *reasonable* assumption that
+    # both services share the credential, not a proven one — they could read
+    # different env files, use a secrets manager, or hold a stale key.
     for ev in evidence_records:
         ev_dir = _directory(ev.source_location)
         if not ev_dir:
@@ -131,7 +132,7 @@ def _shared_config_edges(
                 source_id=a.id,
                 target_id=b.id,
                 relationship="shared_config",
-                confidence=0.9,
+                confidence=0.8,
                 evidence=(
                     f"Both in directory containing {ev_filename} with "
                     f"detected {ev.provider} API key"
@@ -256,11 +257,16 @@ def _same_module_edges(records: list[AISystemRecord]) -> list[GraphEdge]:
     return edges
 
 
-def _import_chain_edges(records: list[AISystemRecord]) -> list[GraphEdge]:
-    """Two Python AI findings in the same package (parent directory) form an
-    import-chain edge. We can't actually parse imports without reading file
-    contents, but Python's package discipline means same-dir ``.py`` files
-    almost always import each other or share a module entry point.
+def _same_python_package_edges(records: list[AISystemRecord]) -> list[GraphEdge]:
+    """Two Python AI findings in the same directory get a ``same_python_package``
+    edge.
+
+    Renamed from ``import_chain`` in v0.5.1 — the prior name implied AST-level
+    import-graph analysis, which we *don't* do. We only check that two
+    ``.py`` files share the same parent directory. Python's package
+    discipline means same-dir modules almost always import each other or
+    share a module entry point, but the relationship name now reflects what
+    we actually detect.
     """
     edges: list[GraphEdge] = []
     py_records = [
@@ -284,7 +290,7 @@ def _import_chain_edges(records: list[AISystemRecord]) -> list[GraphEdge]:
             edges.append(GraphEdge(
                 source_id=a.id,
                 target_id=b.id,
-                relationship="import_chain",
+                relationship="same_python_package",
                 confidence=0.7,
                 evidence=evidence,
             ))
@@ -356,7 +362,7 @@ def _shared_terraform_module_edges(records: list[AISystemRecord]) -> list[GraphE
 _NODE_ONLY_DETECTORS = (
     _shared_provider_key_edges,
     _mcp_connection_edges,
-    _import_chain_edges,
+    _same_python_package_edges,
     _shared_terraform_module_edges,
     _same_module_edges,
 )
@@ -366,7 +372,7 @@ def detect_relationships(
     records: list[AISystemRecord],
     evidence_records: list[AISystemRecord] | None = None,
 ) -> list[GraphEdge]:
-    """Run every detector and return a deduplicated list of edges.
+    """Run every detector and return a deduplicated, collapsed list of edges.
 
     *records* are the AI-system records that become graph nodes. *evidence_records*
     (optional) are records that should *not* become nodes themselves, but whose
@@ -374,8 +380,18 @@ def detect_relationships(
     ``code.api_keys`` finding inside an ``.env`` file ties together every AI
     service that lives in that directory.
 
-    When the same (source, target, relationship) triple is produced more than
-    once, the highest-confidence variant wins and its evidence is kept.
+    Two reductions happen here:
+
+    1. **Per-relationship dedup.** When two detectors produce the same
+       ``(source, target, relationship)`` triple, the higher-confidence
+       variant wins.
+    2. **Parallel-edge collapse.** Two AI services may match several
+       detectors at once (e.g. ``shared_provider_key``, ``same_module``,
+       ``same_python_package`` all between the same hiring/ pair). Rendering
+       three near-identical lines on top of each other is noise; we instead
+       emit a single edge whose ``relationship`` is the highest-confidence
+       reason and whose ``evidence`` list accumulates *all* the contributing
+       sentences. The viewer keeps every reason without the visual stack.
     """
     by_key: dict[tuple[str, str, str], GraphEdge] = {}
 
@@ -392,6 +408,53 @@ def detect_relationships(
             if existing is None or edge.confidence > existing.confidence:
                 by_key[edge.key] = edge
 
+    collapsed = _collapse_parallel_edges(by_key.values())
+
     # Stable sort: by relationship, then source, then target — keeps test
     # assertions deterministic across runs.
-    return sorted(by_key.values(), key=lambda e: (e.relationship, e.source_id, e.target_id))
+    return sorted(collapsed, key=lambda e: (e.relationship, e.source_id, e.target_id))
+
+
+def _collapse_parallel_edges(edges: Iterable[GraphEdge]) -> list[GraphEdge]:
+    """Collapse edges sharing a ``(source_id, target_id)`` pair into one.
+
+    Inputs come from ``detect_relationships`` after per-relationship dedup,
+    so each pair has at most one edge per relationship type. The merge
+    rules:
+
+    * **Relationship**: the type with the highest ``confidence`` wins.
+      Ties resolve by the first-seen relationship (stable).
+    * **Confidence**: the maximum confidence in the group.
+    * **Evidence**: every contributing edge's evidence sentences,
+      concatenated in descending-confidence order, de-duplicated.
+    """
+    by_pair: dict[tuple[str, str], list[GraphEdge]] = {}
+    for edge in edges:
+        by_pair.setdefault((edge.source_id, edge.target_id), []).append(edge)
+
+    out: list[GraphEdge] = []
+    for pair, group in by_pair.items():
+        if len(group) == 1:
+            out.append(group[0])
+            continue
+
+        # Highest confidence first; ties keep their original relative order.
+        sorted_group = sorted(group, key=lambda e: -e.confidence)
+        winner = sorted_group[0]
+
+        merged_evidence: list[str] = []
+        seen: set[str] = set()
+        for e in sorted_group:
+            for sentence in e.evidence:
+                if sentence and sentence not in seen:
+                    merged_evidence.append(sentence)
+                    seen.add(sentence)
+
+        out.append(GraphEdge(
+            source_id=winner.source_id,
+            target_id=winner.target_id,
+            relationship=winner.relationship,
+            confidence=winner.confidence,
+            evidence=merged_evidence,
+        ))
+    return out

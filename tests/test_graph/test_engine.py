@@ -88,14 +88,29 @@ def test_hiring_directory_yields_provider_edge(graph):
                for e in edges) or any(e.source_id in pair and e.target_id in pair for e in edges)
 
 
-def test_hiring_python_files_get_import_chain_edge(graph):
-    edges = _edges(graph, "import_chain")
-    assert any("hiring/" in e.evidence for e in edges), edges
+def _evidence_contains(edge, fragment: str) -> bool:
+    """Substring-search every sentence in an edge's evidence list."""
+    return any(fragment in s for s in edge.evidence)
+
+
+def test_hiring_python_files_get_same_python_package_evidence(graph):
+    """The hiring/ pair collapses to ``shared_provider_key`` (winning conf 0.85),
+    but the merged evidence list must still contain the same_python_package
+    sentence (the prior ``import_chain`` reason, renamed in v0.5.1)."""
+    package_evidence = [
+        e for e in graph.edges
+        if any("package" in s for s in e.evidence)
+        and any("hiring/" in s for s in e.evidence)
+    ]
+    assert package_evidence, (
+        "expected hiring/ Python files to contribute a same_python_package "
+        f"evidence sentence; got: {[(e.relationship, e.evidence) for e in graph.edges]}"
+    )
 
 
 def test_analytics_directory_yields_provider_edge(graph):
     edges = _edges(graph, "shared_provider_key")
-    assert any("analytics" in e.evidence for e in edges), edges
+    assert any(_evidence_contains(e, "analytics") for e in edges), edges
 
 
 def test_terraform_resources_share_module(graph):
@@ -109,7 +124,7 @@ def test_mcp_connection_links_chatbot_to_mcp(graph):
     assert edges, "expected support/.mcp.json to connect to support/chatbot.py"
     for edge in edges:
         # Evidence must name the MCP server.
-        assert "MCP server" in edge.evidence
+        assert _evidence_contains(edge, "MCP server")
 
 
 def test_no_edges_between_unrelated_directories(graph):
@@ -159,13 +174,18 @@ def test_api_key_findings_are_not_nodes(graph):
 
 def test_api_key_evidence_strengthens_hiring_shared_config(graph):
     """The hiring/ subdir ships an .env with an OpenAI API key plus two .py
-    files; the evidence-based shared_config path should pair them."""
+    files. After collapse the surviving relationship for that pair is
+    ``shared_provider_key`` (0.85), but the merged evidence list must still
+    contain the api-key sentence (0.8) as one of its entries."""
     by_id = {n.id: n for n in graph.nodes}
-    api_key_edges = [
+    candidates = [
         e for e in graph.edges
-        if e.relationship == "shared_config" and "API key" in e.evidence
+        if any("API key" in s for s in e.evidence)
     ]
-    assert api_key_edges, "no api-key-evidence shared_config edges fired at all"
+    assert candidates, (
+        "no edges carry api-key evidence at all; "
+        f"got: {[(e.relationship, e.evidence) for e in graph.edges]}"
+    )
 
     def _dir_contains(edge, fragment: str) -> bool:
         a = by_id.get(edge.source_id)
@@ -176,9 +196,9 @@ def test_api_key_evidence_strengthens_hiring_shared_config(graph):
         b_loc = b.source_location.replace("\\", "/").lower()
         return f"/{fragment}/" in a_loc and f"/{fragment}/" in b_loc
 
-    assert any(_dir_contains(e, "hiring") for e in api_key_edges), (
-        "expected an api-key shared_config edge between two hiring/ records; "
-        f"got: {[(by_id[e.source_id].label, by_id[e.target_id].label) for e in api_key_edges]}"
+    assert any(_dir_contains(e, "hiring") for e in candidates), (
+        "expected an api-key evidence sentence between two hiring/ records; "
+        f"got: {[(by_id[e.source_id].label, by_id[e.target_id].label) for e in candidates]}"
     )
 
 

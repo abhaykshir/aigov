@@ -50,18 +50,27 @@ def _ids(edges):
 # shared_config
 # ---------------------------------------------------------------------------
 
+def _evidence_contains(edge, fragment: str) -> bool:
+    """Substring search across an edge's list-of-evidence-sentences."""
+    return any(fragment in ev for ev in edge.evidence)
+
+
 class TestSharedConfig:
     def test_two_findings_in_same_env_file(self):
-        a = _record("a", name="OpenAI key", source_location="hiring/.env:3")
-        b = _record("b", name="Anthropic key", source_location="hiring/.env:5")
+        # Different providers + same dir would still pull in shared_provider_key,
+        # so we set provider="internal" to suppress that path. shared_config
+        # (0.9) still wins on confidence; the merge keeps every contributing
+        # sentence in evidence.
+        a = _record("a", name="OpenAI key", provider="internal", source_location="hiring/.env:3")
+        b = _record("b", name="Anthropic key", provider="internal", source_location="hiring/.env:5")
         edges = _by_relationship(detect_relationships([a, b]), "shared_config")
         assert len(edges) == 1
         assert edges[0].confidence == 0.9
-        assert "hiring/.env" in edges[0].evidence
+        assert _evidence_contains(edges[0], "hiring/.env")
 
     def test_two_mcp_findings_in_same_mcp_json(self):
-        a = _record("a", name="db", source_location="proj/.mcp.json")
-        b = _record("b", name="slack", source_location="proj/.mcp.json")
+        a = _record("a", name="db", provider="internal", source_location="proj/.mcp.json")
+        b = _record("b", name="slack", provider="internal", source_location="proj/.mcp.json")
         edges = _by_relationship(detect_relationships([a, b]), "shared_config")
         assert len(edges) == 1
 
@@ -79,23 +88,32 @@ class TestSharedConfig:
 
     def test_api_key_evidence_creates_shared_config_between_co_located_services(self):
         """An api_keys evidence record at hiring/.env ties together every AI
-        service in hiring/. Confirms the v0.5 evidence-based path."""
+        service in hiring/. Confirms the v0.5 evidence-based path.
+
+        We pick different providers and non-.py extensions so the merge keeps
+        ``shared_config`` as the winning relationship (otherwise
+        ``shared_provider_key`` at 0.85 or ``same_python_package`` at 0.7
+        would dominate).
+        """
         api_key_evidence = _record(
             "ev",
             name="OpenAI API Key detected",
             provider="OpenAI",
             source_location="hiring/.env:3",
         )
-        screener = _record("a", source_location="hiring/screener.py:1")
-        ranker = _record("b", source_location="hiring/ranker.py:1")
+        screener = _record("a", provider="OpenAI", source_location="hiring/screener.txt:1")
+        ranker = _record("b", provider="Anthropic", source_location="hiring/ranker.txt:1")
         edges = detect_relationships(
             [screener, ranker], evidence_records=[api_key_evidence]
         )
         shared = [e for e in edges if e.relationship == "shared_config"]
         assert len(shared) == 1
-        assert shared[0].confidence == 0.9
-        assert "OpenAI" in shared[0].evidence
-        assert ".env" in shared[0].evidence
+        # Lowered from 0.9 → 0.8 in v0.5.1 — co-residence with an .env is a
+        # *reasonable* assumption that services share the credential, not a
+        # proven one.
+        assert shared[0].confidence == 0.8
+        assert _evidence_contains(shared[0], "OpenAI")
+        assert _evidence_contains(shared[0], ".env")
 
     def test_api_key_evidence_does_not_link_services_in_different_dirs(self):
         api_key_evidence = _record(
@@ -114,8 +132,8 @@ class TestSharedConfig:
 
     def test_evidence_records_default_empty(self):
         """The new keyword arg is optional — single-arg calls still work."""
-        a = _record("a", source_location="x/.mcp.json")
-        b = _record("b", source_location="x/.mcp.json")
+        a = _record("a", provider="internal", source_location="x/.mcp.json")
+        b = _record("b", provider="internal", source_location="x/.mcp.json")
         edges = detect_relationships([a, b])
         assert any(e.relationship == "shared_config" for e in edges)
 
@@ -130,8 +148,10 @@ class TestSharedProviderKey:
         b = _record("b", provider="OpenAI", source_location="hiring/ranker.py:1")
         edges = _by_relationship(detect_relationships([a, b]), "shared_provider_key")
         assert len(edges) == 1
+        # shared_provider_key (0.85) wins the collapse over same_python_package
+        # (0.7) and same_module (0.5) for this same-dir same-provider pair.
         assert edges[0].confidence == 0.85
-        assert "OpenAI" in edges[0].evidence
+        assert _evidence_contains(edges[0], "OpenAI")
 
     def test_same_provider_different_directories_does_not_match(self):
         a = _record("a", provider="OpenAI", source_location="hiring/screener.py:1")
@@ -164,8 +184,10 @@ class TestMcpConnection:
                      provider="Anthropic", source_location="support/chatbot.py:1")
         edges = _by_relationship(detect_relationships([mcp, api]), "mcp_connection")
         assert len(edges) == 1
+        # mcp_connection (0.8) wins over same_module (0.5) for this pair —
+        # the merged evidence list keeps both sentences.
         assert edges[0].confidence == 0.8
-        assert "vector-db" in edges[0].evidence
+        assert _evidence_contains(edges[0], "vector-db")
 
     def test_mcp_in_unrelated_project_does_not_match(self):
         mcp = _record("mcp", system_type=AISystemType.MCP_SERVER,
@@ -219,8 +241,12 @@ class TestMcpConnection:
 
 class TestSameModule:
     def test_same_directory_yields_edge(self):
-        a = _record("a", source_location="hiring/x.py:1")
-        b = _record("b", source_location="hiring/y.py:1")
+        # Use non-Python extensions and different providers so same_module
+        # (0.5) is the only detector that fires — otherwise the collapse
+        # would surface a stronger relationship (same_python_package or
+        # shared_provider_key) as the winning type.
+        a = _record("a", provider="OpenAI", source_location="hiring/x.txt:1")
+        b = _record("b", provider="Anthropic", source_location="hiring/y.txt:1")
         edges = _by_relationship(detect_relationships([a, b]), "same_module")
         assert len(edges) == 1
         assert edges[0].confidence == 0.5
@@ -236,20 +262,33 @@ class TestSameModule:
 # import_chain
 # ---------------------------------------------------------------------------
 
-class TestImportChain:
+class TestSamePythonPackage:
+    """Renamed from ``import_chain`` in v0.5.1 — see relationships.py for why."""
+
     def test_two_python_files_in_same_package(self):
-        a = _record("a", name="A", source_location="hiring/screener.py:1")
-        b = _record("b", name="B", source_location="hiring/ranker.py:1")
-        edges = _by_relationship(detect_relationships([a, b]), "import_chain")
+        # Different providers so same_python_package (0.7) wins the collapse
+        # over shared_provider_key (0.85). Without the provider isolation
+        # we'd be testing what *wins* rather than that the detector fires.
+        a = _record("a", name="A", provider="OpenAI", source_location="hiring/screener.py:1")
+        b = _record("b", name="B", provider="Anthropic", source_location="hiring/ranker.py:1")
+        edges = _by_relationship(detect_relationships([a, b]), "same_python_package")
         assert len(edges) == 1
         assert edges[0].confidence == 0.7
-        assert "hiring/" in edges[0].evidence
+        assert _evidence_contains(edges[0], "hiring/")
 
     def test_only_python_files_qualify(self):
         a = _record("a", source_location="hiring/x.tf:1")
         b = _record("b", source_location="hiring/y.tf:1")
-        edges = _by_relationship(detect_relationships([a, b]), "import_chain")
+        edges = _by_relationship(detect_relationships([a, b]), "same_python_package")
         assert edges == []
+
+    def test_relationship_string_is_same_python_package_not_import_chain(self):
+        """Belt-and-suspenders: the v0.4-era ``import_chain`` name must not
+        appear anywhere in the detector output."""
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="Anthropic", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        assert "import_chain" not in {e.relationship for e in edges}
 
 
 # ---------------------------------------------------------------------------
@@ -265,12 +304,15 @@ class TestSharedTerraformModule:
         assert edges[0].confidence == 0.9
 
     def test_two_tf_files_in_same_module_directory(self):
-        a = _record("a", source_location="infra/ml/a.tf:5")
-        b = _record("b", source_location="infra/ml/b.tf:5")
+        # Different providers so shared_terraform_module (0.85) wins the
+        # collapse outright. With same provider, shared_provider_key would
+        # tie at 0.85 and order-of-detector would decide — too brittle.
+        a = _record("a", provider="AWS", source_location="infra/ml/a.tf:5")
+        b = _record("b", provider="GCP", source_location="infra/ml/b.tf:5")
         edges = _by_relationship(detect_relationships([a, b]), "shared_terraform_module")
         assert len(edges) == 1
         assert edges[0].confidence == 0.85
-        assert "infra/ml/" in edges[0].evidence
+        assert _evidence_contains(edges[0], "infra/ml/")
 
     def test_resources_in_different_modules_do_not_match(self):
         a = _record("a", source_location="infra/ml/a.tf:5")
@@ -303,8 +345,9 @@ class TestDeduplication:
         a = _record("a", source_location="hiring/.env:1")
         b = _record("b", source_location="hiring/.env:2")
         for edge in detect_relationships([a, b]):
-            assert edge.evidence
-            assert len(edge.evidence) > 5
+            assert edge.evidence  # non-empty list
+            for sentence in edge.evidence:
+                assert len(sentence) > 5
 
     def test_unrelated_records_produce_no_edges(self):
         a = _record("a", provider="OpenAI", source_location="hiring/screener.py:1")
@@ -318,3 +361,59 @@ class TestDeduplication:
         # Different providers, different dirs, MCP not in same project as API:
         # nothing should fire.
         assert edges == []
+
+
+# ---------------------------------------------------------------------------
+# Parallel-edge collapse (new in v0.5.1)
+# ---------------------------------------------------------------------------
+
+class TestParallelEdgeCollapse:
+    def test_pair_with_multiple_relationships_collapses_to_one_edge(self):
+        """Two same-dir same-provider .py files match three detectors —
+        ``same_module``, ``same_python_package``, ``shared_provider_key`` —
+        but the user should see exactly one edge between them."""
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="OpenAI", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        # One pair → one edge after collapse.
+        pairs = {(e.source_id, e.target_id) for e in edges}
+        assert len(pairs) == 1
+        assert len(edges) == 1
+
+    def test_collapsed_edge_uses_highest_confidence_relationship(self):
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="OpenAI", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        # shared_provider_key (0.85) > same_python_package (0.7) > same_module (0.5).
+        assert edges[0].relationship == "shared_provider_key"
+        assert edges[0].confidence == 0.85
+
+    def test_collapsed_edge_keeps_every_evidence_sentence(self):
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="OpenAI", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        ev = edges[0].evidence
+        assert any("OpenAI" in s for s in ev)             # shared_provider_key
+        assert any("package" in s for s in ev)            # same_python_package
+        assert any("Both in" in s for s in ev)            # same_module
+
+    def test_evidence_sentences_are_unique(self):
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="OpenAI", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        for edge in edges:
+            assert len(edge.evidence) == len(set(edge.evidence))
+
+    def test_evidence_ordered_by_descending_confidence(self):
+        """The strongest signal lands first so a reviewer sees the most
+        important reason at the top of any list rendering."""
+        a = _record("a", provider="OpenAI", source_location="hiring/x.py:1")
+        b = _record("b", provider="OpenAI", source_location="hiring/y.py:1")
+        edges = detect_relationships([a, b])
+        ev = edges[0].evidence
+        # shared_provider_key has the highest confidence, so its sentence
+        # mentioning the provider name should land before the same_module
+        # sentence ("Both in …").
+        provider_idx = next(i for i, s in enumerate(ev) if "OpenAI" in s)
+        same_module_idx = next(i for i, s in enumerate(ev) if s.startswith("Both in"))
+        assert provider_idx < same_module_idx

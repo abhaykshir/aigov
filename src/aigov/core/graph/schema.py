@@ -61,12 +61,21 @@ class GraphEdge:
     Edges are intentionally undirected for our six relationship types — the
     ``source_id``/``target_id`` order is canonicalised (lex-sorted) at
     construction so dedup is a simple tuple compare.
+
+    ``evidence`` is a list of human-readable sentences. Each detector
+    contributes one entry; when parallel edges between the same pair are
+    collapsed (see :func:`detect_relationships`), the surviving edge accumulates
+    every contributing evidence sentence so a reviewer sees *all* the reasons
+    the systems are linked.
+
+    For ergonomics the constructor accepts a single ``str`` and wraps it,
+    since most call-sites only have one sentence to add.
     """
     source_id: str
     target_id: str
     relationship: str
     confidence: float
-    evidence: str
+    evidence: list[str]
 
     def __post_init__(self) -> None:
         if not (0.0 <= float(self.confidence) <= 1.0):
@@ -80,6 +89,13 @@ class GraphEdge:
         # Canonicalise so dedup compares ordered tuples.
         if self.source_id > self.target_id:
             self.source_id, self.target_id = self.target_id, self.source_id
+        # Normalise evidence: accept a string for ergonomics, store a list.
+        if isinstance(self.evidence, str):
+            self.evidence = [self.evidence] if self.evidence else []
+        elif self.evidence is None:
+            self.evidence = []
+        else:
+            self.evidence = [str(e) for e in self.evidence if e]
 
     @property
     def key(self) -> tuple[str, str, str]:
@@ -92,17 +108,24 @@ class GraphEdge:
             "target_id": self.target_id,
             "relationship": self.relationship,
             "confidence": self.confidence,
-            "evidence": self.evidence,
+            "evidence": list(self.evidence),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GraphEdge":
+        raw = data.get("evidence")
+        if raw is None:
+            evidence: list[str] = []
+        elif isinstance(raw, str):
+            evidence = [raw] if raw else []
+        else:
+            evidence = [str(e) for e in raw if e]
         return cls(
             source_id=data["source_id"],
             target_id=data["target_id"],
             relationship=data["relationship"],
             confidence=float(data["confidence"]),
-            evidence=str(data.get("evidence") or ""),
+            evidence=evidence,
         )
 
 

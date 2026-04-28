@@ -238,6 +238,15 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     font-style: italic;
     font-size: 11.5px;
   }}
+  #detail-panel .edge-row .ev-list {{
+    color: var(--text-dim);
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-style: italic;
+    font-size: 11.5px;
+    line-height: 1.5;
+  }}
+  #detail-panel .edge-row .ev-list li {{ margin-bottom: 2px; }}
   #legend {{
     position: absolute;
     bottom: 18px;
@@ -598,6 +607,14 @@ linkHit
     tooltip.style('opacity', 0);
   }});
 
+function evidenceList(e) {{
+  // ``evidence`` is a list[str] in v0.5.1+. Older snapshots may carry a
+  // single string; coerce so the renderer doesn't have to care.
+  if (Array.isArray(e.evidence)) return e.evidence.filter(Boolean);
+  if (typeof e.evidence === 'string' && e.evidence) return [e.evidence];
+  return [];
+}}
+
 function edgeTooltipHtml(e) {{
   const sId = (e.source && e.source.id) || e.source_id;
   const tId = (e.target && e.target.id) || e.target_id;
@@ -606,11 +623,14 @@ function edgeTooltipHtml(e) {{
   const aLabel = a ? (NODE_LABELS.get(a.id) || a.label) : sId;
   const bLabel = b ? (NODE_LABELS.get(b.id) || b.label) : tId;
   const conf = Math.round(e.confidence * 100);
+  const evidenceRows = evidenceList(e).map(ev =>
+    `<div class="row" style="margin-top:4px;color:var(--text);">• ${{escapeHtml(ev)}}</div>`
+  ).join('');
   return [
     `<div class="name">${{escapeHtml(e.relationship)}}</div>`,
     `<div class="row">confidence: ${{conf}}%</div>`,
     `<div class="row">${{escapeHtml(aLabel)}} ↔ ${{escapeHtml(bLabel)}}</div>`,
-    `<div class="row" style="margin-top:5px;color:var(--text);">${{escapeHtml(e.evidence)}}</div>`,
+    evidenceRows,
   ].join('');
 }}
 
@@ -712,6 +732,12 @@ function detailHtml(d) {{
     const other = DATA.nodes.find(n => n.id === otherId);
     const otherLabel = other ? (NODE_LABELS.get(other.id) || other.label) : otherId;
     const conf = Math.round(e.confidence * 100);
+    const evList = evidenceList(e);
+    const evHtml = evList.length === 0
+      ? ''
+      : (evList.length === 1
+          ? `<div class="ev">${{escapeHtml(evList[0])}}</div>`
+          : `<ul class="ev-list">${{evList.map(ev => `<li>${{escapeHtml(ev)}}</li>`).join('')}}</ul>`);
     return `
       <div class="edge-row">
         <div class="edge-header">
@@ -719,7 +745,7 @@ function detailHtml(d) {{
           <span class="conf">${{conf}}%</span>
         </div>
         <div class="target">→ <strong>${{escapeHtml(otherLabel)}}</strong></div>
-        <div class="ev">${{escapeHtml(e.evidence)}}</div>
+        ${{evHtml}}
       </div>`;
   }}).join('');
 
